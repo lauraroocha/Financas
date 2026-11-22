@@ -183,7 +183,7 @@
               <span>Cartão Casal Total (60%)</span>
               <span id="acertoCompCartaoCasal" class="font-semibold font-numeric text-plum">R$ 0,00</span>
             </div>
-            <div class="flex justify-between text-taupe">
+            <div id="acertoRowSplitwise" class="flex justify-between text-taupe">
               <span>Lançamentos Splitwise (60%)</span>
               <span id="acertoCompSplitwise" class="font-semibold font-numeric text-plum">R$ 0,00</span>
             </div>
@@ -395,7 +395,6 @@
                 <option value="" selected disabled></option>
                 <option value="Cartão Casal">Cartão Casal</option>
                 <option value="Cartão Black">Cartão Black</option>
-                <option value="Splitwise">Splitwise</option>
                 <option value="Pix">Pix</option>
                 <option value="Ticket VA/VR">Ticket VA/VR</option>
               </select>
@@ -1405,6 +1404,7 @@
       document.getElementById('acertoCompCond').innerText = formatR$(acertoCond);
       document.getElementById('acertoCompCartaoCasal').innerText = formatR$(acertoCartaoCasal);
       document.getElementById('acertoCompSplitwise').innerText = formatR$(acertoSplitwise);
+      document.getElementById('acertoRowSplitwise').classList.toggle('hidden', acertoSplitwise <= 0.004);
       document.getElementById('acertoCompTotal').innerText = formatR$(acertoTotalCalc);
       document.getElementById('acertoCompPago').innerText = formatR$(acertoPago);
       document.getElementById('acertoLimparBtn').classList.toggle('hidden', acertoPago <= 0.004);
@@ -2039,7 +2039,9 @@
 
       document.getElementById('detalheLancamentoTitle').innerText = 'Editar Lançamento';
       const cats = ['Mercado', 'Restaurante', 'Transporte', 'Beleza/saúde', 'Casa', 'Ozzy', 'Roupas', 'Lazer', 'Presente', 'Outros'];
-      const methods = ['Cartão Casal', 'Cartão Black', 'Splitwise', 'Pix', 'Ticket VA/VR'];
+      const methods = ['Cartão Casal', 'Cartão Black', 'Pix', 'Ticket VA/VR'];
+      const legacyMethod = tx.method && !methods.includes(tx.method) ? tx.method : null;
+      if (legacyMethod) methods.push(legacyMethod);
       const splits = ['60/40 Casal', '100% Laura'];
 
       document.getElementById('detalheLancamentoBody').innerHTML = `
@@ -2068,7 +2070,7 @@
             <div>
               <label class="block text-[10px] font-semibold text-taupe mb-1">Pagamento</label>
               <select id="editTxMethod" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft">
-                ${methods.map(m => `<option value="${m}" ${tx.method === m ? 'selected' : ''}>${m}</option>`).join('')}
+                ${methods.map(m => `<option value="${m}" ${tx.method === m ? 'selected' : ''}>${m === legacyMethod ? m + ' (antigo)' : m}</option>`).join('')}
               </select>
             </div>
             <div>

@@ -1,7 +1,7 @@
 // Service worker: guarda uma cópia do app para funcionar sem internet.
 // Estratégia: tenta a rede primeiro (assim você sempre recebe a versão mais nova)
 // e, se estiver offline, usa a cópia guardada.
-const CACHE = 'financas-v1';
+const CACHE = 'financas-v2';
 const ASSETS = [
   './',
   './index.html',
