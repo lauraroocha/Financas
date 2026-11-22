@@ -1,0 +1,3139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Finanças — Laura & Rodrigo</title>
+  
+  <meta name="theme-color" content="#4A1D2F">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <!-- CSS compilado (Tailwind + fontes locais). Gerado com: npm run build:css -->
+  <link rel="stylesheet" href="css/app.css">
+
+  <!-- Lucide Icons (local) -->
+  <script src="vendor/lucide.min.js"></script>
+
+  <!-- PDF.js para leitura de faturas em PDF (local) -->
+  <script src="vendor/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #F3EDE4;
+      color: #2D2327;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .font-numeric {
+      font-variant-numeric: tabular-nums;
+    }
+    /* Hide scrollbars for clean mobile view */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .tab-active {
+      color: #4A1D2F;
+      font-weight: 700;
+    }
+    .tab-inactive {
+      color: #8F7B6C;
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen pb-20 select-none antialiased max-w-md md:max-w-xl lg:max-w-2xl mx-auto shadow-2xl bg-[#F3EDE4] border-x border-taupe-soft/30">
+
+  <!-- TOP HEADER -->
+  <header class="sticky top-0 z-30 bg-[#F3EDE4]/95 backdrop-blur-md px-4 pt-4 pb-2 border-b border-taupe-soft/40">
+    <div class="flex items-center justify-between">
+      <!-- App Icon + Title -->
+      <div class="relative flex items-center gap-3">
+        <button type="button" onclick="toggleHeaderMenu(event)" title="Menu de Backup" class="w-10 h-10 rounded-xl bg-plum hover:bg-plum-hover flex items-center justify-center shadow-md border border-plum-light/40 transition-colors cursor-pointer">
+          <span class="font-serif text-2xl font-bold text-cream leading-none select-none">$</span>
+        </button>
+        <div>
+          <h1 class="font-serif text-2xl font-bold text-plum tracking-tight leading-none">Finanças</h1>
+        </div>
+
+        <!-- Dropdown Menu de Backup -->
+        <div id="headerBackupMenu" class="hidden absolute left-0 top-12 z-50 w-52 bg-cream-card rounded-2xl shadow-xl border border-taupe-soft/70 p-1.5 space-y-1">
+          <button type="button" onclick="exportBackupJSON()" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-plum hover:bg-plum-soft transition-colors text-left">
+            <i data-lucide="download" class="w-4 h-4 text-plum shrink-0"></i>
+            <span>Exportar Backup</span>
+          </button>
+          <label class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-plum hover:bg-plum-soft transition-colors text-left cursor-pointer">
+            <i data-lucide="upload" class="w-4 h-4 text-plum shrink-0"></i>
+            <span>Importar Backup</span>
+            <input type="file" id="backupFileInput" accept=".json,application/json" onchange="importBackupJSON(event)" class="hidden">
+          </label>
+          <div id="lastBackupInfo" class="px-3 pt-1.5 pb-1 text-[10px] text-taupe border-t border-taupe-soft/50"></div>
+        </div>
+      </div>
+
+      <!-- Month Selector Dropdown -->
+      <div class="relative">
+        <select id="monthSelector" onchange="handleMonthDropdownChange(this)" class="appearance-none bg-cream-card border border-taupe-soft text-plum text-xs font-bold py-2 pl-3 pr-7 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-plum/30 cursor-pointer">
+          <!-- Populated dynamically -->
+        </select>
+        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-plum absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+      </div>
+    </div>
+
+    <!-- Segmented Toggle (Individual vs Casal) -->
+    <div class="mt-3 p-1 bg-cream-dark/60 rounded-xl flex items-center text-xs font-semibold text-taupe">
+      <button id="toggleIndividual" onclick="setViewMode('individual')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">
+        Visão Individual
+      </button>
+      <button id="toggleCasal" onclick="setViewMode('casal')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">
+        Visão Casal (100%)
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="flex-1 px-4 pt-4 space-y-4">
+
+    <!-- TAB 1: INÍCIO -->
+    <section id="tab-inicio" class="tab-content space-y-4">
+      
+      <!-- Resumo Financeiro Card (Plum Highlight) -->
+      <div class="bg-plum text-cream p-5 rounded-2xl shadow-lg relative overflow-hidden">
+        <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-plum-light/20 rounded-full blur-xl pointer-events-none"></div>
+        
+        <div class="flex justify-between items-start mb-2">
+          <span class="text-xs uppercase tracking-wider text-taupe-soft font-medium">Resumo do Mês</span>
+          <button onclick="editReceitaPrompt()" class="text-[11px] text-taupe-soft hover:text-white flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-md">
+            <i data-lucide="pencil" class="w-3 h-3"></i> Editar Receita
+          </button>
+        </div>
+
+        <!-- Receita Principal -->
+        <div class="mb-4">
+          <div class="text-xs text-taupe-soft/80">Receita Total</div>
+          <div id="cardReceita" class="text-3xl font-bold font-numeric text-white tracking-tight">R$ 0,00</div>
+        </div>
+
+        <!-- Side-by-side Pills -->
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
+          <div class="bg-white/10 p-2.5 rounded-xl backdrop-blur-xs">
+            <div class="text-[10px] uppercase font-medium text-taupe-soft">Gastos Totais</div>
+            <div id="cardGastosTotais" class="text-base font-bold font-numeric text-cream mt-0.5">R$ 0,00</div>
+          </div>
+          <div class="bg-white/10 p-2.5 rounded-xl backdrop-blur-xs">
+            <div class="text-[10px] uppercase font-medium text-taupe-soft">Sobra / Investido</div>
+            <div id="cardSobraInvestido" class="text-base font-bold font-numeric text-emerald-300 mt-0.5">R$ 0,00</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acerto com Rodrigo Card -->
+      <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-plum-soft flex items-center justify-center text-plum">
+              <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+            </div>
+            <h3 class="font-serif font-bold text-plum text-sm">Acerto com Rodrigo</h3>
+          </div>
+          
+          <!-- Compact Action Button in Top Right -->
+          <div id="acertoActionButtonContainer">
+            <!-- Dynamically rendered -->
+          </div>
+        </div>
+
+        <!-- Main Display -->
+        <div class="my-2 bg-cream/70 p-3 rounded-xl border border-taupe-soft/30 flex justify-between items-center">
+          <div>
+            <div id="acertoStatusLabel" class="text-xs text-taupe font-medium">Rodrigo deve ressarcir à Laura</div>
+            <div id="acertoValorPrincipal" class="text-xl font-bold text-plum font-numeric">R$ 0,00</div>
+          </div>
+          <div id="acertoStatusBadge" class="text-xs px-2.5 py-1 rounded-full font-semibold">
+            <!-- Status Badge -->
+          </div>
+        </div>
+
+        <!-- Collapsible Accordion -->
+        <div class="border-t border-taupe-soft/30 pt-2 mt-2">
+          <button onclick="toggleAcertoAccordion()" class="w-full flex items-center justify-between text-xs text-taupe font-medium py-1">
+            <span>Ver composição do acerto (60%)</span>
+            <i id="acertoChevron" data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200"></i>
+          </button>
+          
+          <div id="acertoAccordionContent" class="hidden space-y-1.5 pt-2 text-xs">
+            <div class="flex justify-between text-taupe">
+              <span>Financiamento Casa (60%)</span>
+              <span id="acertoCompFinanc" class="font-semibold font-numeric text-plum">R$ 0,00</span>
+            </div>
+            <div class="flex justify-between text-taupe">
+              <span>Condomínio (60%)</span>
+              <span id="acertoCompCond" class="font-semibold font-numeric text-plum">R$ 0,00</span>
+            </div>
+            <div class="flex justify-between text-taupe">
+              <span>Cartão Casal Total (60%)</span>
+              <span id="acertoCompCartaoCasal" class="font-semibold font-numeric text-plum">R$ 0,00</span>
+            </div>
+            <div class="flex justify-between text-taupe">
+              <span>Lançamentos Splitwise (60%)</span>
+              <span id="acertoCompSplitwise" class="font-semibold font-numeric text-plum">R$ 0,00</span>
+            </div>
+            <div class="flex justify-between text-taupe border-t border-taupe-soft/30 pt-1.5 mt-1">
+              <span>Total do acerto</span>
+              <span id="acertoCompTotal" class="font-semibold font-numeric text-plum">R$ 0,00</span>
+            </div>
+            <div class="flex justify-between text-taupe">
+              <span>Já pago por Rodrigo</span>
+              <span id="acertoCompPago" class="font-semibold font-numeric text-emerald-700">R$ 0,00</span>
+            </div>
+            <button id="acertoLimparBtn" type="button" onclick="reabrirAcerto()" class="hidden text-[11px] text-rose-700 font-semibold hover:underline pt-1">Limpar pagamentos deste mês</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gastos Fixos da Casa Card -->
+      <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <i data-lucide="home" class="w-4 h-4 text-plum"></i>
+            <h3 class="font-serif font-bold text-plum text-sm">Gastos Fixos da Casa</h3>
+          </div>
+          <button onclick="openGastosFixosModal()" class="text-xs text-plum hover:underline font-semibold flex items-center gap-1">
+            <i data-lucide="edit-3" class="w-3 h-3"></i> Alterar
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-cream/60 p-3 rounded-xl border border-taupe-soft/30">
+            <div class="text-[11px] text-taupe font-medium">Financiamento</div>
+            <div id="fixoFinanciamentoVal" class="text-base font-bold text-plum font-numeric mt-0.5">R$ 0,00</div>
+            <div id="fixoFinanciamentoSub" class="text-[10px] text-taupe mt-0.5">Total: R$ 0,00</div>
+          </div>
+          <div class="bg-cream/60 p-3 rounded-xl border border-taupe-soft/30">
+            <div class="text-[11px] text-taupe font-medium">Condomínio</div>
+            <div id="fixoCondominioVal" class="text-base font-bold text-plum font-numeric mt-0.5">R$ 0,00</div>
+            <div id="fixoCondominioSub" class="text-[10px] text-taupe mt-0.5">Total: R$ 0,00</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráfico de Evolução Mensal em Linhas (Gastos Variáveis vs Gastos Totais) -->
+      <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50">
+        <div class="flex items-center justify-between mb-3 gap-2">
+          <div>
+            <h3 class="font-serif font-bold text-plum text-sm">Evolução Mensal de Gastos</h3>
+          </div>
+          <div class="flex items-center gap-2.5 text-[10px] font-semibold shrink-0">
+            <span class="flex items-center gap-1 text-plum">
+              <span class="w-2.5 h-2.5 rounded-full bg-plum inline-block"></span> Totais
+            </span>
+            <span class="flex items-center gap-1 text-taupe">
+              <span class="w-2.5 h-2.5 rounded-full bg-taupe inline-block"></span> Variáveis
+            </span>
+          </div>
+        </div>
+
+        <div class="w-full h-44 relative">
+          <svg id="inicioLineChart" class="w-full h-full overflow-visible"></svg>
+        </div>
+      </div>
+
+      <!-- Gráfico de Evolução Mensal por Categorias (Barras Agrupadas) -->
+      <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50">
+        <div class="mb-2">
+          <h3 class="font-serif font-bold text-plum text-sm">Evolução Mensal por Categorias</h3>
+        </div>
+        <div id="inicioCategoriesLegend" class="flex flex-wrap gap-x-3 gap-y-1 mb-3 text-[10px] font-semibold">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="w-full h-80 relative">
+          <svg id="inicioCategoriesChart" class="w-full h-full overflow-visible"></svg>
+        </div>
+
+        <!-- Gráfico de Pizza (Distribuição Mensal com Gastos Fixos) -->
+        <div class="mt-4 pt-4 border-t border-taupe-soft/40">
+          <div class="mb-3">
+            <h4 class="font-serif font-bold text-plum text-xs">Distribuição Mensal (com Gastos Fixos)</h4>
+          </div>
+          <div class="flex flex-col sm:flex-row items-center justify-around gap-4">
+            <div class="relative w-40 h-40 shrink-0">
+              <svg id="inicioMonthlyPieChart" class="w-full h-full transform -rotate-90" viewBox="0 0 100 100"></svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                <span class="text-[9px] text-taupe uppercase font-semibold">Total Mês</span>
+                <span id="inicioMonthlyPieTotal" class="text-[11px] font-bold text-plum font-numeric">R$ 0</span>
+              </div>
+            </div>
+            <div id="inicioMonthlyPieLegend" class="w-full space-y-1.5 max-h-56 overflow-y-auto text-xs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 2: LANÇAMENTOS -->
+    <section id="tab-lancamentos" class="tab-content hidden space-y-4">
+      
+      <!-- Importar Extrato / Fatura (Compacto) -->
+      <div class="bg-cream-card rounded-2xl p-3.5 shadow-sm border border-taupe-soft/50 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-8 h-8 rounded-xl bg-plum-soft flex items-center justify-center text-plum shrink-0">
+              <i data-lucide="file-up" class="w-4 h-4"></i>
+            </div>
+            <div class="min-w-0">
+              <h3 class="font-serif font-bold text-plum text-xs truncate">Importar Extrato / Fatura</h3>
+              <p class="text-[10px] text-taupe truncate">PDF, CSV ou TXT do banco</p>
+            </div>
+          </div>
+          <label class="cursor-pointer bg-plum text-cream hover:bg-plum-hover px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-colors flex items-center gap-1.5 shadow-xs">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+            <span id="importBtnLabel">Selecionar</span>
+            <input type="file" id="csvFileInput" accept=".pdf,.csv,.txt,application/pdf" onchange="handleCSVUpload(event)" class="hidden">
+          </label>
+        </div>
+        <div id="importStatusBanner" class="hidden text-[11px] px-3 py-2 rounded-xl font-medium"></div>
+
+        <!-- Prévia Interativa / Lista Suspensa da Fatura Importada -->
+        <div id="invoicePreviewContainer" class="hidden border-t border-taupe-soft/40 pt-3 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-plum flex items-center gap-1.5 flex-wrap">
+                <span>Prévia da Fatura</span>
+                <span id="invoicePreviewMonthBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-plum-soft text-plum font-bold">Nov 2026</span>
+                <select id="invoicePreviewCardSelect" onchange="changePreviewCardMethod(this.value)" class="text-[10px] px-2 py-0.5 rounded-full bg-taupe-light text-plum font-bold border border-taupe-soft/60 focus:outline-none cursor-pointer">
+                  <option value="Cartão Black">Cartão Black</option>
+                  <option value="Cartão Casal">Cartão Casal</option>
+                </select>
+              </div>
+              <div id="invoicePreviewPendingHint" class="text-[10px] text-amber-700 font-semibold mt-0.5 hidden">
+                Preencha as categorias destacadas antes de carregar.
+              </div>
+            </div>
+            <button type="button" onclick="closeInvoicePreview()" class="text-[11px] text-taupe hover:text-plum font-semibold px-2 py-1">
+              Cancelar
+            </button>
+          </div>
+
+          <!-- Lista Suspensa Rolável dos Lançamentos -->
+          <div id="invoicePreviewList" class="max-h-72 overflow-y-auto space-y-2 pr-0.5">
+            <!-- Populated dynamically -->
+          </div>
+
+          <!-- Rodapé com Total da Soma e Botão Carregar -->
+          <div class="bg-cream p-2.5 rounded-xl border border-taupe-soft/50 flex items-center justify-between gap-2">
+            <div>
+              <div class="text-[10px] text-taupe font-semibold uppercase">Total da Fatura (<span id="invoicePreviewCount">0</span> itens)</div>
+              <div id="invoicePreviewTotal" class="text-sm font-bold text-plum font-numeric">R$ 0,00</div>
+            </div>
+            <button type="button" onclick="confirmImportPreview()" class="bg-plum text-cream hover:bg-plum-hover px-4 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5">
+              <i data-lucide="check" class="w-3.5 h-3.5"></i>
+              <span>Carregar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Novo Lançamento Form -->
+      <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50">
+        <h3 class="font-serif font-bold text-plum text-sm mb-3 flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i> Novo Lançamento
+        </h3>
+        <form onsubmit="addLancamento(event)" class="space-y-3">
+          <div class="grid grid-cols-3 gap-2">
+            <div class="col-span-2">
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Descrição</label>
+              <input type="text" id="inputDesc" placeholder="Ex: Mercado, Jantar..." required class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
+            </div>
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Valor (R$)</label>
+              <input type="number" step="0.01" id="inputValor" placeholder="0,00" required class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric focus:outline-none focus:ring-1 focus:ring-plum">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Data</label>
+              <div class="relative flex items-center bg-cream px-2.5 py-2 rounded-xl border border-taupe-soft focus-within:ring-1 focus-within:ring-plum">
+                <span id="displayDataCurta" class="text-xs font-numeric text-plum font-semibold pointer-events-none flex-1"></span>
+                <input type="date" id="inputData" onchange="syncDatePickerDisplay(this.value)" required class="w-6 h-5 opacity-0 cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 z-10">
+                <i data-lucide="calendar" class="w-4 h-4 text-plum pointer-events-none shrink-0"></i>
+              </div>
+            </div>
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Categoria</label>
+              <select id="inputCategoria" required class="w-full bg-cream px-2.5 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
+                <option value="" selected disabled></option>
+                <option value="Mercado">Mercado</option>
+                <option value="Restaurante">Restaurante</option>
+                <option value="Transporte">Transporte</option>
+                <option value="Beleza/saúde">Beleza/saúde</option>
+                <option value="Casa">Casa</option>
+                <option value="Ozzy">Ozzy</option>
+                <option value="Roupas">Roupas</option>
+                <option value="Lazer">Lazer</option>
+                <option value="Presente">Presente</option>
+                <option value="Outros">Outros</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Pagamento</label>
+              <select id="inputPagamento" required class="w-full bg-cream px-2.5 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
+                <option value="" selected disabled></option>
+                <option value="Cartão Casal">Cartão Casal</option>
+                <option value="Cartão Black">Cartão Black</option>
+                <option value="Splitwise">Splitwise</option>
+                <option value="Pix">Pix</option>
+                <option value="Ticket VA/VR">Ticket VA/VR</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Divisão</label>
+              <select id="inputDivisao" required class="w-full bg-cream px-2.5 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
+                <option value="" selected disabled></option>
+                <option value="60/40 Casal">60/40 Casal</option>
+                <option value="100% Laura">100% Laura</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full bg-plum text-cream py-2.5 rounded-xl text-xs font-semibold hover:bg-plum-hover transition-colors shadow-sm">
+            Adicionar Lançamento
+          </button>
+        </form>
+      </div>
+
+      <!-- Lista de Lançamentos -->
+      <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="font-serif font-bold text-plum text-sm">Lista de Lançamentos</h3>
+          <select id="filterCategoria" onchange="renderLancamentosList()" class="bg-cream border border-taupe-soft text-plum text-[11px] font-semibold py-1 px-2.5 rounded-lg focus:outline-none">
+            <option value="Todas">Todas Categorias</option>
+            <option value="Mercado">Mercado</option>
+            <option value="Restaurante">Restaurante</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Beleza/saúde">Beleza/saúde</option>
+            <option value="Casa">Casa</option>
+            <option value="Ozzy">Ozzy</option>
+            <option value="Roupas">Roupas</option>
+            <option value="Lazer">Lazer</option>
+            <option value="Presente">Presente</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+
+        <div id="lancamentosList" class="space-y-2">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 3: METAS -->
+    <section id="tab-metas" class="tab-content hidden space-y-4">
+      
+      <!-- Metas Header Summary Card -->
+      <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-serif font-bold text-plum text-sm">Metas Individuais (Laura)</h3>
+          <button onclick="openModalNovaMeta()" class="bg-plum-soft hover:bg-plum/15 text-plum border border-plum/20 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-colors">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nova Meta
+          </button>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-plum/5 p-3 rounded-xl border border-plum/10">
+            <div class="text-[10px] uppercase font-semibold text-taupe">Total Acumulado</div>
+            <div id="metaTotalAcumulado" class="text-xl font-bold text-plum font-numeric mt-0.5">R$ 10.200,00</div>
+            <div class="text-[10px] text-taupe mt-1">Soma das metas ativas</div>
+          </div>
+          <div class="bg-plum/5 p-3 rounded-xl border border-plum/10">
+            <div class="text-[10px] uppercase font-semibold text-taupe">Aporte Mês Atual</div>
+            <div id="metaAporteAtual" class="text-xl font-bold text-plum font-numeric mt-0.5">R$ 0,00</div>
+            <div class="text-[10px] text-taupe mt-1">Mês selecionado</div>
+          </div>
+        </div>
+
+        <button onclick="openModalAporteResgate()" class="w-full mt-3 bg-plum text-cream py-2 rounded-xl text-xs font-semibold hover:bg-plum-hover transition-colors shadow-sm flex items-center justify-center gap-1.5">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i> Registrar Aporte ou Resgate
+        </button>
+      </div>
+
+      <!-- Individual Goals Cards -->
+      <div id="goalsContainer" class="space-y-3">
+        <!-- Dynamically rendered -->
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- TOAST COM DESFAZER -->
+  <div id="undoToast" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-sm bg-[#2D2327] text-cream rounded-xl shadow-2xl px-4 py-3 flex items-center justify-between gap-3 text-xs font-semibold">
+    <span id="undoToastMsg">Lançamento excluído</span>
+    <button type="button" onclick="runUndoToast()" class="text-amber-300 font-bold hover:underline shrink-0">Desfazer</button>
+  </div>
+
+  <!-- FIXED BOTTOM NAVIGATION BAR -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-t border-taupe-soft/50 max-w-md md:max-w-xl lg:max-w-2xl mx-auto">
+    <div class="flex justify-around items-center h-16 px-2">
+      <button onclick="switchTab('inicio')" id="nav-inicio" class="flex flex-col items-center justify-center w-full h-full text-taupe transition-colors">
+        <i data-lucide="home" class="w-5 h-5"></i>
+        <span class="text-[10px] mt-1 font-medium">Início</span>
+      </button>
+      <button onclick="switchTab('lancamentos')" id="nav-lancamentos" class="flex flex-col items-center justify-center w-full h-full text-taupe transition-colors">
+        <i data-lucide="list-plus" class="w-5 h-5"></i>
+        <span class="text-[10px] mt-1 font-medium">Lançamentos</span>
+      </button>
+      <button onclick="switchTab('metas')" id="nav-metas" class="flex flex-col items-center justify-center w-full h-full text-taupe transition-colors">
+        <i data-lucide="target" class="w-5 h-5"></i>
+        <span class="text-[10px] mt-1 font-medium">Metas</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MODAL: REGISTRAR PAGAMENTO DO RODRIGO -->
+  <div id="modalAcerto" onclick="if(event.target === this) closeModalAcerto()" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-4">
+      <div class="flex items-center gap-3 text-plum">
+        <div class="w-9 h-9 rounded-xl bg-plum-soft flex items-center justify-center">
+          <i data-lucide="check-circle-2" class="w-5 h-5 text-plum"></i>
+        </div>
+        <h3 class="font-serif font-bold text-base">Registrar Pagamento</h3>
+      </div>
+
+      <div class="bg-cream p-3 rounded-xl border border-taupe-soft/40 text-xs space-y-1">
+        <div class="flex justify-between"><span class="text-taupe">Total do acerto</span><span id="modalAcertoTotal" class="font-semibold text-plum font-numeric">R$ 0,00</span></div>
+        <div class="flex justify-between"><span class="text-taupe">Já pago por Rodrigo</span><span id="modalAcertoPago" class="font-semibold text-emerald-700 font-numeric">R$ 0,00</span></div>
+        <div class="flex justify-between border-t border-taupe-soft/30 pt-1"><span class="text-taupe font-semibold">Saldo pendente</span><strong id="modalAcertoValor" class="text-plum font-numeric">R$ 0,00</strong></div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-taupe mb-1">Valor que Rodrigo transferiu (R$)</label>
+        <input type="number" step="0.01" min="0" inputmode="decimal" id="modalAcertoInput" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric focus:outline-none focus:ring-1 focus:ring-plum">
+        <p class="text-[10px] text-taupe mt-1">Já vem preenchido com o saldo pendente. Se ele transferiu menos, ajuste o valor e o restante continua pendente.</p>
+        <p id="modalAcertoError" class="text-[11px] text-rose-700 font-semibold mt-1 hidden">Informe um valor maior que zero.</p>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModalAcerto()" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-taupe hover:bg-cream">
+          Cancelar
+        </button>
+        <button type="button" onclick="confirmarPagamentoAcerto()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-plum text-cream hover:bg-plum-hover">
+          Registrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: GASTOS FIXOS DA CASA EDIT -->
+  <div id="modalGastosFixos" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-4">
+      <h3 class="font-serif font-bold text-plum text-base">Alterar Gastos Fixos do Mês</h3>
+      
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-taupe mb-1">Financiamento Total (100%)</label>
+          <input type="number" step="0.01" id="editFinanciamento" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-taupe mb-1">Condomínio Total (100%)</label>
+          <input type="number" step="0.01" id="editCondominio" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeGastosFixosModal()" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-taupe">Cancelar</button>
+        <button onclick="saveGastosFixos()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-plum text-cream">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDITAR RECEITA DO MÊS -->
+  <div id="modalEditReceita" onclick="if(event.target === this) closeEditReceitaModal()" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-4">
+      <div class="flex items-center justify-between border-b border-taupe-soft/30 pb-2">
+        <h3 id="modalReceitaTitle" class="font-serif font-bold text-plum text-base">Editar Receita</h3>
+        <button onclick="closeEditReceitaModal()" class="text-taupe hover:text-plum p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div>
+        <label id="modalReceitaLabel" class="block text-xs font-semibold text-taupe mb-1">Receita (R$)</label>
+        <input type="number" step="0.01" id="editReceitaValor" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric focus:outline-none focus:ring-1 focus:ring-plum">
+        <p id="modalReceitaError" class="text-[11px] text-rose-700 font-semibold mt-1 hidden">Informe um valor válido maior ou igual a zero.</p>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeEditReceitaModal()" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-taupe hover:bg-cream">Cancelar</button>
+        <button type="button" onclick="saveEditReceita()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-plum text-cream hover:bg-plum-hover">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NOVO MÊS -->
+  <div id="modalNovoMes" onclick="if(event.target === this) closeNovoMesModal()" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-4">
+      <div class="flex items-center justify-between border-b border-taupe-soft/30 pb-2">
+        <h3 class="font-serif font-bold text-plum text-base">Iniciar Novo Mês</h3>
+        <button type="button" onclick="closeNovoMesModal()" class="text-taupe hover:text-plum p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form onsubmit="createNewMonth(event)" class="space-y-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-semibold text-taupe mb-1">Mês</label>
+            <select id="novoMesSelect" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
+              <option value="01">Janeiro</option>
+              <option value="02">Fevereiro</option>
+              <option value="03">Março</option>
+              <option value="04">Abril</option>
+              <option value="05">Maio</option>
+              <option value="06">Junho</option>
+              <option value="07">Julho</option>
+              <option value="08">Agosto</option>
+              <option value="09">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12" selected>Dezembro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-taupe mb-1">Ano</label>
+            <input type="number" id="novoMesAno" min="2020" max="2099" value="2026" required class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric focus:outline-none focus:ring-1 focus:ring-plum">
+          </div>
+        </div>
+
+        <p class="text-[11px] text-taupe leading-relaxed">
+          Cria o mês com as receitas e gastos fixos base do último mês cadastrado, pronto para seus novos lançamentos.
+        </p>
+
+        <label class="flex items-start gap-2 text-[11px] text-taupe leading-relaxed cursor-pointer">
+          <input type="checkbox" id="novoMesBackup" checked class="mt-0.5 accent-[#4A1D2F]">
+          <span>Salvar um backup dos dados antes de criar o mês (no celular abre a opção de guardar em Arquivos, iCloud ou Drive).</span>
+        </label>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeNovoMesModal()" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-taupe hover:bg-cream">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-plum text-cream hover:bg-plum-hover">Criar Mês</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: REGISTRAR APORTE OU RESGATE -->
+  <div id="modalAporteResgate" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-4">
+      <h3 class="font-serif font-bold text-plum text-base">Registrar Movimentação</h3>
+      
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-taupe mb-1">Tipo</label>
+          <select id="tipoMovimentacao" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft">
+            <option value="aporte">Aporte (+)</option>
+            <option value="resgate">Resgate (-)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-taupe mb-1">Meta Destino</label>
+          <select id="metaDestino" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-taupe mb-1">Valor (R$)</label>
+          <input type="number" step="0.01" id="valorMovimentacao" placeholder="0,00" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModalAporteResgate()" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-taupe">Cancelar</button>
+        <button onclick="salvarAporteResgate()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-plum text-cream">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NOVA META -->
+  <div id="modalNovaMeta" onclick="if(event.target === this) closeModalNovaMeta()" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-4">
+      <div class="flex items-center justify-between border-b border-taupe-soft/30 pb-2">
+        <h3 class="font-serif font-bold text-plum text-base">Criar Nova Meta</h3>
+        <button onclick="closeModalNovaMeta()" class="text-taupe hover:text-plum p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form onsubmit="salvarNovaMeta(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-taupe mb-1">Nome da Meta</label>
+          <input type="text" id="novaMetaNome" placeholder="Ex: Troca de Carro, Reserva..." required class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-semibold text-taupe mb-1">Valor Alvo (R$)</label>
+            <input type="number" step="0.01" id="novaMetaAlvo" placeholder="10000,00" required class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric focus:outline-none focus:ring-1 focus:ring-plum">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-taupe mb-1">Valor Inicial (R$)</label>
+            <input type="number" step="0.01" id="novaMetaInicial" value="0" min="0" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric focus:outline-none focus:ring-1 focus:ring-plum">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-taupe mb-1">Ícone</label>
+          <select id="novaMetaIcone" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
+            <option value="target">Alvo / Objetivo</option>
+            <option value="shield-check">Escudo / Segurança</option>
+            <option value="plane">Avião / Viagem</option>
+            <option value="home">Casa / Reforma</option>
+            <option value="sparkles">Conquista / Sonho</option>
+          </select>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModalNovaMeta()" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-taupe">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-plum text-cream hover:bg-plum-hover">Criar Meta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: DETALHES DA META -->
+  <div id="modalDetalheMeta" onclick="if(event.target === this) closeModalDetalheMeta()" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-4">
+      <div class="flex items-center justify-between border-b border-taupe-soft/30 pb-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <h3 id="detalheMetaNome" class="font-serif font-bold text-plum text-base truncate">Detalhes da Meta</h3>
+          <span id="detalheMetaBadge" class="hidden text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 shrink-0">Concluída</span>
+        </div>
+        <button onclick="closeModalDetalheMeta()" class="text-taupe hover:text-plum p-1 shrink-0">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Resumo da Meta -->
+      <div class="grid grid-cols-2 gap-2">
+        <div class="bg-cream p-2.5 rounded-xl border border-taupe-soft/40">
+          <div class="text-[10px] text-taupe font-semibold">Saldo Acumulado</div>
+          <div id="detalheMetaSaldo" class="font-bold text-plum text-sm font-numeric mt-0.5">R$ 0,00</div>
+        </div>
+        <div class="bg-cream p-2.5 rounded-xl border border-taupe-soft/40">
+          <div class="text-[10px] text-taupe font-semibold">Objetivo Final</div>
+          <div id="detalheMetaObjetivo" class="font-bold text-plum text-sm font-numeric mt-0.5">R$ 0,00</div>
+        </div>
+      </div>
+
+      <!-- Gráfico de Evolução de Aportes por Mês -->
+      <div class="bg-cream p-3 rounded-xl border border-taupe-soft/40">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-bold text-plum">Evolução de Aportes por Mês</span>
+          <span class="text-[10px] text-taupe">Jul–Nov 2026</span>
+        </div>
+        <div class="w-full h-36">
+          <svg id="metaEvolucaoChart" class="w-full h-full overflow-visible"></svg>
+        </div>
+      </div>
+
+      <!-- Botões de Ação no Final (Concluir ou Excluir) -->
+      <div id="detalheMetaFooter" class="flex items-center justify-between gap-2 pt-2 border-t border-taupe-soft/30">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DETALHES DO LANÇAMENTO -->
+  <div id="modalDetalheLancamento" onclick="if(event.target === this) closeDetalheLancamento()" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-3">
+      <div class="flex items-center justify-between border-b border-taupe-soft/30 pb-2">
+        <h3 id="detalheLancamentoTitle" class="font-serif font-bold text-plum text-base">Detalhes do Lançamento</h3>
+        <button onclick="closeDetalheLancamento()" class="text-taupe hover:text-plum p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      
+      <div id="detalheLancamentoBody" class="space-y-2 text-xs">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div id="detalheLancamentoFooter" class="flex justify-end gap-2 pt-2">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AVISO DE DUPLA CONTAGEM NA IMPORTAÇÃO -->
+  <div id="modalDuplicateWarning" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-cream-card rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-taupe-soft space-y-3">
+      <div class="flex items-center gap-2.5 text-amber-800">
+        <div class="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+          <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-700"></i>
+        </div>
+        <div>
+          <h3 class="font-serif font-bold text-plum text-base">Possível Dupla Contagem</h3>
+          <p class="text-[11px] text-taupe">Encontramos lançamentos parecidos já cadastrados neste mês.</p>
+        </div>
+      </div>
+
+      <div id="duplicateItemsList" class="max-h-56 overflow-y-auto space-y-2 text-xs">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div class="flex flex-col gap-2 pt-2 border-t border-taupe-soft/30">
+        <button type="button" onclick="resolveDuplicatesImport(true)" class="w-full py-2 rounded-xl text-xs font-bold bg-plum text-cream hover:bg-plum-hover">
+          Ignorar Duplicados e Carregar Restantes
+        </button>
+        <div class="flex gap-2">
+          <button type="button" onclick="closeDuplicateModal()" class="flex-1 py-2 rounded-xl text-xs font-semibold text-taupe bg-cream hover:bg-cream-dark">
+            Voltar e Ajustar
+          </button>
+          <button type="button" onclick="resolveDuplicatesImport(false)" class="flex-1 py-2 rounded-xl text-xs font-semibold text-plum border border-plum/30 hover:bg-plum-soft">
+            Carregar Todos
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPLICATION LOGIC SCRIPT -->
+  <script>
+    // STORAGE KEY VERSIONING FOR BYPASSING OLD CACHE
+    const STORAGE_KEY = 'financas_laura_v5_cards_clean';
+
+    // BASELINE MONTHLY DATA FROM CONTROLE TAB
+    const BASELINE_MONTHS = {
+      '2026-07': { salarioCasal: 19444, salarioLaura: 6944, investidoLaura: 1750, financiamento: 5850, condominio: 1177, cartaoCasalTotal: 0 },
+      '2026-08': { salarioCasal: 19328, salarioLaura: 6828, investidoLaura: 0, financiamento: 3915, condominio: 1202, cartaoCasalTotal: 0 },
+      '2026-09': { salarioCasal: 30515, salarioLaura: 18015, investidoLaura: 7650, financiamento: 5842, condominio: 1240, cartaoCasalTotal: 0 },
+      '2026-10': { salarioCasal: 19500, salarioLaura: 7000, investidoLaura: 800, financiamento: 5840, condominio: 1244, cartaoCasalTotal: 0 },
+      '2026-11': { salarioCasal: 20874, salarioLaura: 8374, investidoLaura: 0, financiamento: 5827, condominio: 1282, cartaoCasalTotal: 0 }
+    };
+
+    // LANÇAMENTOS INICIAIS VAZIOS PARA INSERÇÃO MANUAL 1 A 1
+    const SAMPLE_TRANSACTIONS = [];
+
+    // APPLICATION STATE
+    let state = {
+      viewMode: 'individual', // 'individual' or 'casal'
+      selectedMonth: '2026-11',
+      monthsData: {},
+      transactions: [],
+      settlements: {}, // { '2026-11': { status: 'settled', amount: 5410.20, date: '...' } }
+      goals: {
+        reserva: 7500.00,
+        viagens: 2700.00
+      },
+      goalsList: null,
+      lastBackupAt: null
+    };
+
+    const DEFAULT_GOALS_LIST = [
+      {
+        id: 'reserva',
+        name: 'Reserva & Investimentos',
+        target: 50000.00,
+        current: 7500.00,
+        icon: 'shield-check',
+        completed: false,
+        monthlyContributions: {
+          '2026-07': 1250.00,
+          '2026-08': 0.00,
+          '2026-09': 5650.00,
+          '2026-10': 600.00,
+          '2026-11': 0.00
+        }
+      },
+      {
+        id: 'viagens',
+        name: 'Viagens & Projetos',
+        target: 15000.00,
+        current: 2700.00,
+        icon: 'plane',
+        completed: false,
+        monthlyContributions: {
+          '2026-07': 500.00,
+          '2026-08': 0.00,
+          '2026-09': 2000.00,
+          '2026-10': 200.00,
+          '2026-11': 0.00
+        }
+      }
+    ];
+
+    function ensureGoalsList() {
+      if (!Array.isArray(state.goalsList)) {
+        state.goalsList = JSON.parse(JSON.stringify(DEFAULT_GOALS_LIST));
+        if (state.goals) {
+          const r = state.goalsList.find(g => g.id === 'reserva');
+          const v = state.goalsList.find(g => g.id === 'viagens');
+          if (r && typeof state.goals.reserva === 'number') r.current = state.goals.reserva;
+          if (v && typeof state.goals.viagens === 'number') v.current = state.goals.viagens;
+        }
+        saveState();
+      }
+    }
+
+    function normalizeCategories() {
+      let changed = false;
+      if (Array.isArray(state.transactions)) {
+        state.transactions.forEach(t => {
+          if (t.cat === 'Estacionamento' || t.cat === 'Combustível') {
+            t.cat = 'Transporte';
+            changed = true;
+          }
+          const isPilates = t.cat === 'Pilates' || (t.desc && t.desc.toLowerCase().includes('pilates'));
+          if (isPilates) {
+            if (t.cat !== 'Beleza/saúde') {
+              t.cat = 'Beleza/saúde';
+              changed = true;
+            }
+            if (parseFloat(t.value) !== 240) {
+              t.value = 240.00;
+              changed = true;
+            }
+          }
+        });
+      }
+      if (changed) saveState();
+    }
+
+    // INITIALIZATION
+    window.onload = function() {
+      initApp();
+    };
+
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('headerBackupMenu');
+      if (!menu || menu.classList.contains('hidden')) return;
+      if (!e.target.closest('#headerBackupMenu') && !e.target.closest('button[title="Menu de Backup"]')) {
+        menu.classList.add('hidden');
+      }
+    });
+
+    function toggleHeaderMenu(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('headerBackupMenu');
+      if (!menu) return;
+      menu.classList.toggle('hidden');
+      if (!menu.classList.contains('hidden')) {
+        updateBackupInfo();
+        lucide.createIcons();
+      }
+    }
+
+    // Data local (YYYY-MM-DD) sem o desvio de fuso do toISOString()
+    function localISODate(d) {
+      const dt = d || new Date();
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    }
+
+    function updateBackupInfo() {
+      const el = document.getElementById('lastBackupInfo');
+      if (!el) return;
+      if (!state.lastBackupAt) {
+        el.innerText = 'Nenhum backup salvo ainda';
+        return;
+      }
+      el.innerText = `Último backup: ${formatDateShort(localISODate(new Date(state.lastBackupAt)))}`;
+    }
+
+    // Salva o backup: no celular abre a folha de compartilhar (Arquivos, iCloud, Drive...);
+    // onde isso não existe, baixa o arquivo JSON.
+    async function saveBackupFile(filename) {
+      const nowISO = new Date().toISOString();
+      const snapshot = Object.assign({}, state, { lastBackupAt: nowISO });
+      const json = JSON.stringify({ app: 'Financas_Laura_Rodrigo', exportedAt: nowISO, state: snapshot }, null, 2);
+      let saved = false;
+
+      try {
+        const file = new File([json], filename, { type: 'application/json' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: 'Backup Finanças' });
+          saved = true;
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') return false; // cancelou a folha de compartilhar
+      }
+
+      if (!saved) {
+        try {
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          saved = true;
+        } catch (err) {
+          console.error('Erro ao exportar backup:', err);
+          return false;
+        }
+      }
+
+      state.lastBackupAt = nowISO;
+      saveState();
+      updateBackupInfo();
+      return true;
+    }
+
+    function exportBackupJSON() {
+      const menu = document.getElementById('headerBackupMenu');
+      if (menu) menu.classList.add('hidden');
+      saveBackupFile(`backup-financas-${localISODate()}.json`);
+    }
+
+    function importBackupJSON(event) {
+      const file = event.target.files && event.target.files[0];
+      const menu = document.getElementById('headerBackupMenu');
+      if (menu) menu.classList.add('hidden');
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          const restored = parsed && parsed.state && typeof parsed.state === 'object' ? parsed.state : parsed;
+          if (!restored || typeof restored !== 'object' || !restored.monthsData) {
+            throw new Error('Arquivo de backup inválido.');
+          }
+
+          state = {
+            viewMode: restored.viewMode === 'casal' ? 'casal' : 'individual',
+            selectedMonth: restored.selectedMonth || Object.keys(restored.monthsData).sort().pop() || '2026-11',
+            monthsData: restored.monthsData,
+            transactions: Array.isArray(restored.transactions) ? restored.transactions : [],
+            settlements: restored.settlements && typeof restored.settlements === 'object' ? restored.settlements : {},
+            goals: restored.goals && typeof restored.goals === 'object' ? restored.goals : { reserva: 7500.00, viagens: 2700.00 },
+            goalsList: Array.isArray(restored.goalsList) ? restored.goalsList : null,
+            lastBackupAt: restored.lastBackupAt || null
+          };
+
+          normalizeCategories();
+          ensureGoalsList();
+          saveState();
+          renderMonthDropdown();
+          updateUI();
+        } catch (err) {
+          console.error('Erro ao importar backup:', err);
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function initApp() {
+      loadState();
+      normalizeCategories();
+      ensureGoalsList();
+      setupDateDefault();
+      renderMonthDropdown();
+      updateUI();
+      lucide.createIcons();
+    }
+
+    // LOAD & SAVE STATE
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          state = JSON.parse(saved);
+          if (!Array.isArray(state.transactions)) {
+            state.transactions = [];
+          }
+          if (state.monthsData) {
+            Object.keys(state.monthsData).forEach(mKey => {
+              state.monthsData[mKey].cartaoCasalTotal = 0;
+            });
+          }
+        } catch(e) {
+          console.error("Failed to parse storage, reinitializing baseline", e);
+          initBaselineData();
+        }
+      } else {
+        initBaselineData();
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function initBaselineData() {
+      state.viewMode = 'individual';
+      state.selectedMonth = '2026-11';
+      state.monthsData = JSON.parse(JSON.stringify(BASELINE_MONTHS));
+      state.transactions = [];
+      normalizeCategories();
+      state.settlements = {};
+      state.goals = { reserva: 7500.00, viagens: 2700.00 };
+      state.goalsList = JSON.parse(JSON.stringify(DEFAULT_GOALS_LIST));
+      saveState();
+    }
+
+    function confirmResetData() {
+      if (confirm("Deseja realmente restaurar os dados originais da planilha? Todas as edições locais serão resetadas.")) {
+        initBaselineData();
+        renderMonthDropdown();
+        updateUI();
+        alert("Dados restaurados com sucesso!");
+      }
+    }
+
+    function setupDateDefault() {
+      const todayIso = localISODate();
+      const inputData = document.getElementById('inputData');
+      if (inputData) {
+        inputData.value = todayIso;
+        syncDatePickerDisplay(todayIso);
+      }
+    }
+
+    function syncDatePickerDisplay(isoDate) {
+      const displayEl = document.getElementById('displayDataCurta');
+      if (displayEl) {
+        displayEl.innerText = formatDateShort(isoDate);
+      }
+    }
+
+    function formatDateShort(isoDate) {
+      if (!isoDate || !isoDate.includes('-')) return isoDate || '';
+      const [y, m, d] = isoDate.split('-');
+      const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+      const mIdx = parseInt(m, 10) - 1;
+      if (isNaN(mIdx) || mIdx < 0 || mIdx > 11) return isoDate;
+      return `${d.padStart(2, '0')}-${months[mIdx]}-${y.slice(-2)}`;
+    }
+
+    function parseShortDateToISO(str) {
+      if (!str) return null;
+      const clean = str.trim().toLowerCase();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+      const months = { jan: '01', fev: '02', mar: '03', abr: '04', mai: '05', jun: '06', jul: '07', ago: '08', set: '09', out: '10', nov: '11', dez: '12' };
+      const match = clean.match(/^(\d{1,2})[-/]([a-zç]{3}|\d{1,2})[-/](\d{2,4})$/);
+      if (!match) return null;
+      const d = match[1].padStart(2, '0');
+      const mRaw = match[2];
+      const m = months[mRaw] || ( /^\d{1,2}$/.test(mRaw) ? mRaw.padStart(2, '0') : null );
+      if (!m) return null;
+      const yRaw = match[3];
+      const y = yRaw.length === 2 ? `20${yRaw}` : yRaw;
+      return `${y}-${m}-${d}`;
+    }
+
+    // MONTH DROPDOWN & VIEW MODE
+    function renderMonthDropdown() {
+      const select = document.getElementById('monthSelector');
+      select.innerHTML = '';
+      
+      const availableMonths = Object.keys(state.monthsData).sort().reverse();
+      availableMonths.forEach(mKey => {
+        const [year, month] = mKey.split('-');
+        const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        const label = `${monthNames[parseInt(month) - 1]} ${year}`;
+        
+        const option = document.createElement('option');
+        option.value = mKey;
+        option.innerText = label;
+        if (mKey === state.selectedMonth) option.selected = true;
+        select.appendChild(option);
+      });
+
+      const newMonthOption = document.createElement('option');
+      newMonthOption.value = '__NEW_MONTH__';
+      newMonthOption.innerText = '+ Novo mês...';
+      select.appendChild(newMonthOption);
+    }
+
+    function handleMonthDropdownChange(selectEl) {
+      if (selectEl.value === '__NEW_MONTH__') {
+        selectEl.value = state.selectedMonth;
+        openNovoMesModal();
+        return;
+      }
+      changeMonth(selectEl.value);
+    }
+
+    function openNovoMesModal() {
+      const sortedMonths = Object.keys(state.monthsData).sort();
+      const lastKey = sortedMonths[sortedMonths.length - 1] || state.selectedMonth || '2026-11';
+      const [lastYearStr, lastMonthStr] = lastKey.split('-');
+      let nextYear = parseInt(lastYearStr, 10) || 2026;
+      let nextMonth = (parseInt(lastMonthStr, 10) || 11) + 1;
+
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear += 1;
+      }
+
+      document.getElementById('novoMesSelect').value = String(nextMonth).padStart(2, '0');
+      document.getElementById('novoMesAno').value = String(nextYear);
+      document.getElementById('modalNovoMes').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeNovoMesModal() {
+      document.getElementById('modalNovoMes').classList.add('hidden');
+    }
+
+    function createNewMonth(e) {
+      e.preventDefault();
+      const monthStr = document.getElementById('novoMesSelect').value;
+      const yearStr = String(parseInt(document.getElementById('novoMesAno').value, 10) || 2026);
+      const newKey = `${yearStr}-${monthStr}`;
+
+      if (!state.monthsData[newKey]) {
+        const sortedMonths = Object.keys(state.monthsData).sort();
+        const refKey = sortedMonths[sortedMonths.length - 1] || state.selectedMonth;
+
+        // Backup dos dados antes de abrir o novo mês (usa o gesto do clique para abrir a folha de compartilhar)
+        const backupBox = document.getElementById('novoMesBackup');
+        if (backupBox && backupBox.checked) {
+          saveBackupFile(`backup-financas-${refKey}-fechamento.json`);
+        }
+
+        const refData = state.monthsData[refKey] || BASELINE_MONTHS['2026-11'] || {
+          salarioCasal: 20874,
+          salarioLaura: 8374,
+          investidoLaura: 0,
+          financiamento: 5827,
+          condominio: 1282,
+          cartaoCasalTotal: 0
+        };
+
+        state.monthsData[newKey] = {
+          salarioCasal: refData.salarioCasal,
+          salarioLaura: refData.salarioLaura,
+          investidoLaura: 0,
+          financiamento: refData.financiamento,
+          condominio: refData.condominio,
+          cartaoCasalTotal: refData.cartaoCasalTotal
+        };
+      }
+
+      state.selectedMonth = newKey;
+      saveState();
+      closeNovoMesModal();
+      renderMonthDropdown();
+      updateUI();
+    }
+
+    // Garante que o mês exista; cria copiando salário/financiamento/condomínio do mês anterior mais próximo
+    function ensureMonthData(monthKey) {
+      if (state.monthsData[monthKey]) return state.monthsData[monthKey];
+      const sorted = Object.keys(state.monthsData).sort();
+      const prevKey = sorted.filter(k => k < monthKey).pop() || sorted[sorted.length - 1];
+      const ref = (prevKey && state.monthsData[prevKey]) || BASELINE_MONTHS['2026-11'];
+      state.monthsData[monthKey] = {
+        salarioCasal: ref.salarioCasal,
+        salarioLaura: ref.salarioLaura,
+        investidoLaura: 0,
+        financiamento: ref.financiamento,
+        condominio: ref.condominio,
+        cartaoCasalTotal: 0
+      };
+      return state.monthsData[monthKey];
+    }
+
+    function changeMonth(monthKey) {
+      state.selectedMonth = monthKey;
+      saveState();
+      updateUI();
+    }
+
+    function setViewMode(mode) {
+      state.viewMode = mode;
+      saveState();
+      updateUI();
+    }
+
+    function updateUI() {
+      // Toggle styles
+      const btnInd = document.getElementById('toggleIndividual');
+      const btnCas = document.getElementById('toggleCasal');
+      if (state.viewMode === 'individual') {
+        btnInd.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 bg-white text-plum shadow-xs font-bold";
+        btnCas.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 text-taupe font-semibold hover:text-plum";
+      } else {
+        btnCas.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 bg-white text-plum shadow-xs font-bold";
+        btnInd.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 text-taupe font-semibold hover:text-plum";
+      }
+
+      // Update calculations
+      const monthData = state.monthsData[state.selectedMonth] || { salarioCasal: 0, salarioLaura: 0, investidoLaura: 0, financiamento: 0, condominio: 0, cartaoCasalTotal: 0 };
+      const mTx = state.transactions.filter(t => t.month === state.selectedMonth);
+
+      // Calculations
+      let totalGastosLancamentosIndividual = 0;
+      let totalGastosLancamentosCasal = 0;
+      let splitwiseShareRodrigo = 0;
+      let cartaoCasalShareRodrigo = 0;
+
+      mTx.forEach(t => {
+        const val = parseFloat(t.value) || 0;
+        if (t.split === '60/40 Casal') {
+          totalGastosLancamentosIndividual += val * 0.40;
+          totalGastosLancamentosCasal += val;
+          if (t.method === 'Splitwise') {
+            splitwiseShareRodrigo += val * 0.60;
+          }
+          if (t.method === 'Cartão Casal') {
+            cartaoCasalShareRodrigo += val * 0.60;
+          }
+        } else {
+          // 100% Laura entra apenas na visão individual
+          totalGastosLancamentosIndividual += val;
+        }
+      });
+
+      // Fixed expenses shares
+      const financLaura = monthData.financiamento * 0.40;
+      const condLaura = monthData.condominio * 0.40;
+      const cartaoCasalLaura = monthData.cartaoCasalTotal * 0.40;
+
+      const totalGastosFixosIndividual = financLaura + condLaura + cartaoCasalLaura;
+      const totalGastosFixosCasal = monthData.financiamento + monthData.condominio + monthData.cartaoCasalTotal;
+
+      const gastosTotaisIndividual = totalGastosFixosIndividual + totalGastosLancamentosIndividual;
+      const gastosTotaisCasal = totalGastosFixosCasal + totalGastosLancamentosCasal;
+
+      const receitaAtiva = state.viewMode === 'individual' ? monthData.salarioLaura : monthData.salarioCasal;
+      const gastosTotaisAtivos = state.viewMode === 'individual' ? gastosTotaisIndividual : gastosTotaisCasal;
+      const sobraInvestido = receitaAtiva - gastosTotaisAtivos;
+
+      // Fill Resumo Card
+      document.getElementById('cardReceita').innerText = formatR$(receitaAtiva);
+      document.getElementById('cardGastosTotais').innerText = formatR$(gastosTotaisAtivos);
+      
+      const sobraEl = document.getElementById('cardSobraInvestido');
+      sobraEl.innerText = formatR$(sobraInvestido);
+      if (sobraInvestido < 0) {
+        sobraEl.className = "text-base font-bold font-numeric text-rose-300 mt-0.5";
+      } else {
+        sobraEl.className = "text-base font-bold font-numeric text-emerald-300 mt-0.5";
+      }
+
+      // Acerto com Rodrigo Calculation (Rodrigo owes Laura 60% of shared expenses paid by Laura)
+      const acertoFinanc = monthData.financiamento * 0.60;
+      const acertoCond = monthData.condominio * 0.60;
+      const acertoCartaoCasal = monthData.cartaoCasalTotal * 0.60 + cartaoCasalShareRodrigo;
+      const acertoSplitwise = splitwiseShareRodrigo;
+      const acertoTotalCalc = acertoFinanc + acertoCond + acertoCartaoCasal + acertoSplitwise;
+
+      // Acerto: pagamentos (parciais ou totais) já recebidos de Rodrigo
+      const acertoPago = getAcertoPago(state.selectedMonth);
+      const acertoRestante = Math.round((acertoTotalCalc - acertoPago) * 100) / 100;
+      currentAcertoTotal = acertoTotalCalc;
+      currentAcertoPago = acertoPago;
+      currentAcertoRestante = acertoRestante;
+
+      let acertoStatus;
+      if (acertoPago > 0.004) {
+        if (acertoRestante > 0.009) acertoStatus = 'parcial';
+        else if (acertoRestante < -0.009) acertoStatus = 'credito';
+        else acertoStatus = 'quitado';
+      } else {
+        acertoStatus = acertoTotalCalc > 0.009 ? 'pendente' : 'semAcerto';
+      }
+
+      const btnContainer = document.getElementById('acertoActionButtonContainer');
+      const valPrincipalEl = document.getElementById('acertoValorPrincipal');
+      const statusLabelEl = document.getElementById('acertoStatusLabel');
+      const statusBadgeEl = document.getElementById('acertoStatusBadge');
+
+      const registrarBtn = `
+        <button onclick="openModalAcerto()" class="text-xs bg-plum text-cream hover:bg-plum-hover px-3 py-1 rounded-lg font-semibold shadow-xs">
+          Registrar pagamento
+        </button>`;
+      const quitadoBtn = (txt) => `
+        <button onclick="reabrirAcerto()" class="text-xs bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-full font-bold flex items-center gap-1 hover:bg-emerald-200">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i> ${txt}
+        </button>`;
+      const badgeBase = "text-xs px-2.5 py-1 rounded-full font-semibold ";
+
+      if (acertoStatus === 'quitado') {
+        btnContainer.innerHTML = quitadoBtn('Quitado ✓');
+        valPrincipalEl.innerText = formatR$(0);
+        statusLabelEl.innerText = "Saldo zerado — Rodrigo já pagou tudo";
+        statusBadgeEl.innerText = "Quitado";
+        statusBadgeEl.className = badgeBase + "bg-emerald-100 text-emerald-800";
+      } else if (acertoStatus === 'credito') {
+        btnContainer.innerHTML = quitadoBtn('Pago ✓');
+        valPrincipalEl.innerText = formatR$(Math.abs(acertoRestante));
+        statusLabelEl.innerText = "Rodrigo pagou a mais — crédito a favor dele";
+        statusBadgeEl.innerText = "Crédito";
+        statusBadgeEl.className = badgeBase + "bg-sky-100 text-sky-800";
+      } else if (acertoStatus === 'parcial') {
+        btnContainer.innerHTML = registrarBtn;
+        valPrincipalEl.innerText = formatR$(acertoRestante);
+        statusLabelEl.innerText = `Falta Rodrigo ressarcir — já pagou ${formatR$(acertoPago)}`;
+        statusBadgeEl.innerText = "Parcial";
+        statusBadgeEl.className = badgeBase + "bg-amber-100 text-amber-800";
+      } else if (acertoStatus === 'pendente') {
+        btnContainer.innerHTML = registrarBtn;
+        valPrincipalEl.innerText = formatR$(acertoRestante);
+        statusLabelEl.innerText = "Rodrigo deve ressarcir à Laura";
+        statusBadgeEl.innerText = "Pendente";
+        statusBadgeEl.className = badgeBase + "bg-amber-100 text-amber-800";
+      } else {
+        btnContainer.innerHTML = '';
+        valPrincipalEl.innerText = formatR$(0);
+        statusLabelEl.innerText = "Nada a acertar neste mês";
+        statusBadgeEl.innerText = "Em dia";
+        statusBadgeEl.className = badgeBase + "bg-emerald-100 text-emerald-800";
+      }
+
+      // Fill Acerto Breakdown Accordion
+      document.getElementById('acertoCompFinanc').innerText = formatR$(acertoFinanc);
+      document.getElementById('acertoCompCond').innerText = formatR$(acertoCond);
+      document.getElementById('acertoCompCartaoCasal').innerText = formatR$(acertoCartaoCasal);
+      document.getElementById('acertoCompSplitwise').innerText = formatR$(acertoSplitwise);
+      document.getElementById('acertoCompTotal').innerText = formatR$(acertoTotalCalc);
+      document.getElementById('acertoCompPago').innerText = formatR$(acertoPago);
+      document.getElementById('acertoLimparBtn').classList.toggle('hidden', acertoPago <= 0.004);
+
+      // Fill Gastos Fixos da Casa Card
+      if (state.viewMode === 'individual') {
+        document.getElementById('fixoFinanciamentoVal').innerText = formatR$(financLaura);
+        document.getElementById('fixoFinanciamentoSub').innerText = `Total: ${formatR$(monthData.financiamento)} (40%)`;
+        document.getElementById('fixoCondominioVal').innerText = formatR$(condLaura);
+        document.getElementById('fixoCondominioSub').innerText = `Total: ${formatR$(monthData.condominio)} (40%)`;
+      } else {
+        document.getElementById('fixoFinanciamentoVal').innerText = formatR$(monthData.financiamento);
+        document.getElementById('fixoFinanciamentoSub').innerText = `Laura 40%: ${formatR$(financLaura)}`;
+        document.getElementById('fixoCondominioVal').innerText = formatR$(monthData.condominio);
+        document.getElementById('fixoCondominioSub').innerText = `Laura 40%: ${formatR$(condLaura)}`;
+      }
+
+      // Render Lists & Charts
+      renderLancamentosList();
+      renderMetasSection();
+      renderInicioLineChart();
+      renderInicioCategoriesChart();
+      
+      lucide.createIcons();
+    }
+
+    function renderInicioLineChart() {
+      const svg = document.getElementById('inicioLineChart');
+      if (!svg) return;
+      svg.innerHTML = '';
+
+      const months = Object.keys(state.monthsData).sort().slice(-6);
+      const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      if (months.length === 0) return;
+
+      const seriesTotais = [];
+      const seriesVariaveis = [];
+
+      months.forEach(mKey => {
+        const md = state.monthsData[mKey] || { financiamento: 0, condominio: 0, cartaoCasalTotal: 0 };
+        const mTx = state.transactions.filter(t => t.month === mKey);
+
+        let varInd = 0;
+        let varCasal = 0;
+        mTx.forEach(t => {
+          const val = parseFloat(t.value) || 0;
+          if (t.split === '60/40 Casal') {
+            varInd += val * 0.40;
+            varCasal += val;
+          } else {
+            // 100% Laura entra apenas na visão individual
+            varInd += val;
+          }
+        });
+
+        const fixInd = (md.financiamento + md.condominio + md.cartaoCasalTotal) * 0.40;
+        const fixCasal = md.financiamento + md.condominio + md.cartaoCasalTotal;
+
+        const varVal = state.viewMode === 'individual' ? varInd : varCasal;
+        const totVal = state.viewMode === 'individual' ? (fixInd + varInd) : (fixCasal + varCasal);
+
+        seriesVariaveis.push(varVal);
+        seriesTotais.push(totVal);
+      });
+
+      const maxVal = Math.max(...seriesTotais, ...seriesVariaveis, 100);
+      const width = 320;
+      const height = 165;
+      const padTop = 22;
+      const padBottom = 24;
+      const padLeft = 24;
+      const padRight = 24;
+      const chartH = height - padTop - padBottom;
+      const chartW = width - padLeft - padRight;
+      const stepX = months.length > 1 ? chartW / (months.length - 1) : 0;
+
+      // Grid lines
+      [0, 0.5, 1].forEach(ratio => {
+        const y = padTop + chartH - ratio * chartH;
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", padLeft - 8);
+        line.setAttribute("y1", y);
+        line.setAttribute("x2", width - padRight + 8);
+        line.setAttribute("y2", y);
+        line.setAttribute("stroke", "#D9CFC4");
+        line.setAttribute("stroke-width", "0.8");
+        line.setAttribute("stroke-dasharray", ratio === 0 ? "none" : "2,2");
+        svg.appendChild(line);
+      });
+
+      const ptsTotais = seriesTotais.map((v, i) => ({
+        x: months.length > 1 ? padLeft + i * stepX : width / 2,
+        y: padTop + chartH - (v / maxVal) * chartH,
+        val: v
+      }));
+
+      const ptsVariaveis = seriesVariaveis.map((v, i) => ({
+        x: months.length > 1 ? padLeft + i * stepX : width / 2,
+        y: padTop + chartH - (v / maxVal) * chartH,
+        val: v
+      }));
+
+      const drawPath = (pts, color) => {
+        if (pts.length < 2) return;
+        const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", d);
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", color);
+        path.setAttribute("stroke-width", "2.2");
+        path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("stroke-linejoin", "round");
+        svg.appendChild(path);
+      };
+
+      drawPath(ptsTotais, "#4A1D2F");
+      drawPath(ptsVariaveis, "#8F7B6C");
+
+      ptsTotais.forEach((p, i) => {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", p.x);
+        c.setAttribute("cy", p.y);
+        c.setAttribute("r", "3.5");
+        c.setAttribute("fill", "#4A1D2F");
+        c.setAttribute("stroke", "#FAF7F2");
+        c.setAttribute("stroke-width", "1.2");
+        svg.appendChild(c);
+
+        const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        lbl.setAttribute("x", p.x);
+        lbl.setAttribute("y", p.y - 7);
+        lbl.setAttribute("text-anchor", "middle");
+        lbl.setAttribute("font-size", "8");
+        lbl.setAttribute("font-weight", "700");
+        lbl.setAttribute("fill", "#4A1D2F");
+        lbl.textContent = p.val >= 1000 ? `${(p.val / 1000).toFixed(1).replace('.', ',')}k` : `${Math.round(p.val)}`;
+        svg.appendChild(lbl);
+
+        const [, m] = months[i].split('-');
+        const mTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        mTxt.setAttribute("x", p.x);
+        mTxt.setAttribute("y", height - 6);
+        mTxt.setAttribute("text-anchor", "middle");
+        mTxt.setAttribute("font-size", "9.5");
+        mTxt.setAttribute("font-weight", months[i] === state.selectedMonth ? "700" : "500");
+        mTxt.setAttribute("fill", months[i] === state.selectedMonth ? "#4A1D2F" : "#8F7B6C");
+        mTxt.textContent = monthNames[parseInt(m) - 1];
+        svg.appendChild(mTxt);
+      });
+
+      ptsVariaveis.forEach((p) => {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", p.x);
+        c.setAttribute("cy", p.y);
+        c.setAttribute("r", "3");
+        c.setAttribute("fill", "#8F7B6C");
+        c.setAttribute("stroke", "#FAF7F2");
+        c.setAttribute("stroke-width", "1.2");
+        svg.appendChild(c);
+
+        const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        lbl.setAttribute("x", p.x);
+        lbl.setAttribute("y", p.y + 12);
+        lbl.setAttribute("text-anchor", "middle");
+        lbl.setAttribute("font-size", "7.5");
+        lbl.setAttribute("font-weight", "600");
+        lbl.setAttribute("fill", "#8F7B6C");
+        lbl.textContent = p.val >= 1000 ? `${(p.val / 1000).toFixed(1).replace('.', ',')}k` : `${Math.round(p.val)}`;
+        svg.appendChild(lbl);
+      });
+    }
+
+    function renderInicioCategoriesChart() {
+      const svg = document.getElementById('inicioCategoriesChart');
+      const legend = document.getElementById('inicioCategoriesLegend');
+      if (!svg || !legend) return;
+      svg.innerHTML = '';
+      legend.innerHTML = '';
+
+      const allMonths = Object.keys(state.monthsData).sort();
+      const months = allMonths.slice(-6);
+      const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      if (months.length === 0) return;
+
+      // Aggregate category totals per month respecting viewMode
+      const catOverall = {};
+      const monthCatMap = {};
+
+      months.forEach(mKey => {
+        monthCatMap[mKey] = {};
+        const mTx = state.transactions.filter(t => t.month === mKey);
+
+        mTx.forEach(t => {
+          // Na visão casal, ignora lançamentos 100% Laura
+          if (state.viewMode === 'casal' && t.split !== '60/40 Casal') return;
+          const v = parseFloat(t.value) || 0;
+          const val = state.viewMode === 'individual' && t.split === '60/40 Casal' ? v * 0.40 : v;
+          const cat = t.cat || 'Outros';
+          monthCatMap[mKey][cat] = (monthCatMap[mKey][cat] || 0) + val;
+          catOverall[cat] = (catOverall[cat] || 0) + val;
+        });
+      });
+
+      const lastMonthKey = months[months.length - 1];
+      const categories = Object.keys(catOverall).sort((a, b) => {
+        const diffLast = (monthCatMap[lastMonthKey][b] || 0) - (monthCatMap[lastMonthKey][a] || 0);
+        if (diffLast !== 0) return diffLast;
+        return catOverall[b] - catOverall[a];
+      });
+      if (categories.length === 0) return;
+
+      // Paleta harmônica com cores distintas e contrastantes entre si
+      const distinctPalette = [
+        { bg: '#4A1D2F', text: '#FAF7F2' }, // Ameixa Profundo
+        { bg: '#C06C52', text: '#FAF7F2' }, // Terracota
+        { bg: '#3E6B65', text: '#FAF7F2' }, // Verde Petróleo / Sálvia Escuro
+        { bg: '#D49B38', text: '#2D2327' }, // Ocre / Mostarda Dourada
+        { bg: '#5B678A', text: '#FAF7F2' }, // Azul Ardósia
+        { bg: '#8C3B58', text: '#FAF7F2' }, // Vinho / Framboesa
+        { bg: '#6E855B', text: '#FAF7F2' }, // Verde Oliva
+        { bg: '#B87A4B', text: '#FAF7F2' }, // Caramelo Quente
+        { bg: '#7B6D8D', text: '#FAF7F2' }, // Lavanda Ametista
+        { bg: '#A68A7B', text: '#2D2327' }  // Taupe Rosado
+      ];
+
+      const colorMap = {};
+      const textColorMap = {};
+      categories.forEach((c, idx) => {
+        const item = distinctPalette[idx % distinctPalette.length];
+        colorMap[c] = item.bg;
+        textColorMap[c] = item.text;
+
+        legend.innerHTML += `
+          <span class="flex items-center gap-1 text-plum">
+            <span class="w-2.5 h-2.5 rounded-xs inline-block shrink-0" style="background-color: ${colorMap[c]}"></span>
+            <span>${c}</span>
+          </span>
+        `;
+      });
+
+      // Compute max stacked total per month
+      const monthTotals = months.map(mKey =>
+        categories.reduce((sum, c) => sum + (monthCatMap[mKey][c] || 0), 0)
+      );
+      const maxVal = Math.max(...monthTotals, 100);
+
+      const width = 320;
+      const height = 290;
+      const paddingTop = 24;
+      const paddingBottom = 26;
+      const paddingLeft = 6;
+      const paddingRight = 6;
+      const chartH = height - paddingTop - paddingBottom;
+      const chartW = width - paddingLeft - paddingRight;
+      const slotW = chartW / months.length;
+      const barW = Math.min(44, slotW * 0.68);
+
+      // Horizontal baseline
+      const baseLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      baseLine.setAttribute("x1", paddingLeft);
+      baseLine.setAttribute("y1", paddingTop + chartH);
+      baseLine.setAttribute("x2", width - paddingRight);
+      baseLine.setAttribute("y2", paddingTop + chartH);
+      baseLine.setAttribute("stroke", "#D9CFC4");
+      baseLine.setAttribute("stroke-width", "1");
+      svg.appendChild(baseLine);
+
+      months.forEach((mKey, mIdx) => {
+        const [, m] = mKey.split('-');
+        const label = monthNames[parseInt(m) - 1];
+        const centerX = paddingLeft + mIdx * slotW + slotW / 2;
+        const barX = centerX - barW / 2;
+        const monthTotal = monthTotals[mIdx];
+
+        let currentY = paddingTop + chartH;
+
+        categories.forEach((cat, catIdx) => {
+          const val = monthCatMap[mKey][cat] || 0;
+          if (val <= 0) return;
+
+          const segH = (val / maxVal) * chartH;
+          currentY -= segH;
+
+          const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          rect.setAttribute("x", barX);
+          rect.setAttribute("y", currentY);
+          rect.setAttribute("width", barW);
+          rect.setAttribute("height", Math.max(segH, 1));
+          rect.setAttribute("fill", colorMap[cat]);
+          rect.setAttribute("stroke", "#FAF7F2");
+          rect.setAttribute("stroke-width", "0.6");
+          svg.appendChild(rect);
+
+          // Inside segment label (value & %)
+          if (segH >= 11 && monthTotal > 0) {
+            const pct = Math.round((val / monthTotal) * 100);
+            const valShort = val >= 1000 ? `${(val / 1000).toFixed(1).replace('.', ',')}k` : `${Math.round(val)}`;
+            const innerTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            innerTxt.setAttribute("x", centerX);
+            innerTxt.setAttribute("y", currentY + segH / 2 + 2.5);
+            innerTxt.setAttribute("text-anchor", "middle");
+            innerTxt.setAttribute("font-size", "6.2");
+            innerTxt.setAttribute("font-weight", "700");
+            innerTxt.setAttribute("fill", textColorMap[cat]);
+            innerTxt.textContent = `${valShort} (${pct}%)`;
+            svg.appendChild(innerTxt);
+          }
+        });
+
+        // Total label at top of stacked bar
+        if (monthTotal > 0) {
+          const totalLabel = monthTotal >= 1000
+            ? `R$ ${(monthTotal / 1000).toFixed(1).replace('.', ',')}k`
+            : `R$ ${Math.round(monthTotal)}`;
+          const topTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          topTxt.setAttribute("x", centerX);
+          topTxt.setAttribute("y", currentY - 5);
+          topTxt.setAttribute("text-anchor", "middle");
+          topTxt.setAttribute("font-size", "8.5");
+          topTxt.setAttribute("font-weight", "700");
+          topTxt.setAttribute("fill", "#4A1D2F");
+          topTxt.textContent = totalLabel;
+          svg.appendChild(topTxt);
+        }
+
+        // Month label on X axis
+        const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        txt.setAttribute("x", centerX);
+        txt.setAttribute("y", height - 7);
+        txt.setAttribute("text-anchor", "middle");
+        txt.setAttribute("font-size", "10");
+        txt.setAttribute("font-weight", mKey === state.selectedMonth ? "700" : "500");
+        txt.setAttribute("fill", mKey === state.selectedMonth ? "#4A1D2F" : "#8F7B6C");
+        txt.textContent = label;
+        svg.appendChild(txt);
+      });
+
+      renderInicioMonthlyPieChart(colorMap, distinctPalette);
+    }
+
+    function renderInicioMonthlyPieChart(colorMap, distinctPalette) {
+      const pieSvg = document.getElementById('inicioMonthlyPieChart');
+      const pieLegend = document.getElementById('inicioMonthlyPieLegend');
+      const pieTotalEl = document.getElementById('inicioMonthlyPieTotal');
+      if (!pieSvg || !pieLegend || !pieTotalEl) return;
+
+      pieSvg.innerHTML = '';
+      pieLegend.innerHTML = '';
+
+      const mTx = state.transactions.filter(t => t.month === state.selectedMonth);
+      const md = state.monthsData[state.selectedMonth];
+
+      const catTotals = {};
+
+      // Verifica se há lançamentos de Cartão Casal importados/cadastrados no mês
+      const hasCasalTx = mTx.some(t => t.method === 'Cartão Casal');
+
+      if (md) {
+        const financ = parseFloat(md.financiamento) || 0;
+        const cond = parseFloat(md.condominio) || 0;
+        const cartaoCasalBase = hasCasalTx ? 0 : (parseFloat(md.cartaoCasalTotal) || 0);
+        const fixosSoma = financ + cond + cartaoCasalBase;
+        const fixosVal = state.viewMode === 'individual' ? fixosSoma * 0.40 : fixosSoma;
+        if (fixosVal > 0) {
+          catTotals['Gastos Fixos'] = fixosVal;
+        }
+      }
+
+      mTx.forEach(t => {
+        // Na visão casal, ignora lançamentos 100% Laura
+        if (state.viewMode === 'casal' && t.split !== '60/40 Casal') return;
+        const v = parseFloat(t.value) || 0;
+        const val = state.viewMode === 'individual' && t.split === '60/40 Casal' ? v * 0.40 : v;
+        const cat = t.cat || 'Outros';
+        catTotals[cat] = (catTotals[cat] || 0) + val;
+      });
+
+      const entries = Object.entries(catTotals)
+        .filter(([, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1]);
+
+      const grandTotal = entries.reduce((acc, [, v]) => acc + v, 0);
+      pieTotalEl.innerText = grandTotal >= 1000
+        ? `R$ ${(grandTotal / 1000).toFixed(1).replace('.', ',')}k`
+        : formatR$(grandTotal);
+
+      if (grandTotal === 0) {
+        pieLegend.innerHTML = `<div class="text-taupe text-center py-4">Sem dados de gastos no mês.</div>`;
+        return;
+      }
+
+      let cumulativePercent = 0;
+      const radius = 38;
+      const circumference = 2 * Math.PI * radius;
+      let extraIdx = Object.keys(colorMap || {}).length;
+
+      entries.forEach(([cat, val]) => {
+        const percent = val / grandTotal;
+        let color = (colorMap && colorMap[cat]) ? colorMap[cat] : null;
+        if (!color) {
+          if (cat === 'Gastos Fixos') {
+            color = '#2D2327';
+          } else {
+            const item = distinctPalette[extraIdx % distinctPalette.length];
+            color = item.bg;
+            extraIdx++;
+          }
+        }
+
+        const dashArray = `${percent * circumference} ${circumference}`;
+        const dashOffset = -cumulativePercent * circumference;
+        cumulativePercent += percent;
+
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", "50");
+        circle.setAttribute("cy", "50");
+        circle.setAttribute("r", radius);
+        circle.setAttribute("fill", "transparent");
+        circle.setAttribute("stroke", color);
+        circle.setAttribute("stroke-width", "16");
+        circle.setAttribute("stroke-dasharray", dashArray);
+        circle.setAttribute("stroke-dashoffset", dashOffset);
+        pieSvg.appendChild(circle);
+
+        const pctFormatted = (percent * 100).toFixed(1).replace('.', ',') + '%';
+        pieLegend.innerHTML += `
+          <div class="flex items-center justify-between py-1 border-b border-taupe-soft/20 last:border-0">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}"></span>
+              <span class="truncate text-plum font-medium">${cat}</span>
+            </div>
+            <div class="text-right shrink-0 ml-2 font-numeric">
+              <span class="font-bold text-plum">${pctFormatted}</span>
+              <span class="text-[10px] text-taupe block">${formatR$(val)}</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // TAB NAVIGATION
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      const activeTab = document.getElementById(`tab-${tabName}`);
+      if (activeTab) activeTab.classList.remove('hidden');
+
+      ['inicio', 'lancamentos', 'metas'].forEach(t => {
+        const navBtn = document.getElementById(`nav-${t}`);
+        if (!navBtn) return;
+        if (t === tabName) {
+          navBtn.classList.remove('text-taupe');
+          navBtn.classList.add('text-plum', 'font-bold');
+        } else {
+          navBtn.classList.remove('text-plum', 'font-bold');
+          navBtn.classList.add('text-taupe');
+        }
+      });
+
+      if (tabName === 'metas') renderMetasSection();
+      if (tabName === 'lancamentos') renderLancamentosList();
+      if (tabName === 'inicio') {
+        renderInicioLineChart();
+        renderInicioCategoriesChart();
+      }
+      lucide.createIcons();
+    }
+
+    // LANÇAMENTOS LOGIC
+    function formatDateBR(isoDate) {
+      return formatDateShort(isoDate);
+    }
+
+    function renderLancamentosList() {
+      const container = document.getElementById('lancamentosList');
+      if (!container) return;
+      const catFilter = document.getElementById('filterCategoria')?.value || 'Todas';
+
+      let list = state.transactions.filter(t => t.month === state.selectedMonth);
+      if (catFilter !== 'Todas') {
+        list = list.filter(t => t.cat === catFilter);
+      }
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+      if (list.length === 0) {
+        container.innerHTML = `<div class="text-center py-6 text-xs text-taupe">Nenhum lançamento encontrado neste mês.</div>`;
+        return;
+      }
+
+      container.innerHTML = list.map(t => {
+        const val = parseFloat(t.value) || 0;
+        const displayVal = (state.viewMode === 'individual' && t.split === '60/40 Casal') ? val * 0.40 : val;
+        const subNote = (state.viewMode === 'individual' && t.split === '60/40 Casal') ? `Total: ${formatR$(val)}` : t.split;
+
+        return `
+          <div class="flex items-center justify-between p-3 bg-cream/70 hover:bg-cream rounded-xl border border-taupe-soft/30 transition-colors gap-2">
+            <div onclick="openDetalheLancamento('${t.id}')" class="flex-1 min-w-0 cursor-pointer">
+              <div class="flex items-center gap-1.5">
+                <span class="font-semibold text-xs text-plum truncate">${t.desc}</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span class="text-[10px] text-taupe font-numeric">${formatDateBR(t.date)}</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-plum-soft text-plum font-semibold">${t.cat}</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-taupe-light text-taupe font-medium">${t.method}</span>
+              </div>
+            </div>
+            <div onclick="openDetalheLancamento('${t.id}')" class="text-right shrink-0 cursor-pointer">
+              <div class="font-bold text-xs text-plum font-numeric">${formatR$(displayVal)}</div>
+              <div class="text-[9px] text-taupe font-numeric">${subNote}</div>
+            </div>
+            <button onclick="deleteLancamento('${t.id}')" title="Excluir" class="text-taupe hover:text-red-600 p-1.5 shrink-0">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function addLancamento(e) {
+      e.preventDefault();
+      const desc = document.getElementById('inputDesc').value.trim();
+      const value = parseFloat(document.getElementById('inputValor').value);
+      const rawDate = document.getElementById('inputData').value;
+      const date = parseShortDateToISO(rawDate);
+      const cat = document.getElementById('inputCategoria').value;
+      const method = document.getElementById('inputPagamento').value;
+      const split = document.getElementById('inputDivisao').value;
+
+      if (!desc || isNaN(value) || value <= 0 || !date || !cat || !method || !split) return;
+
+      const month = date.slice(0, 7);
+      ensureMonthData(month);
+
+      state.transactions.unshift({
+        id: String(Date.now()),
+        date,
+        month,
+        desc,
+        value,
+        cat,
+        method,
+        split
+      });
+
+      state.selectedMonth = month;
+      saveState();
+      renderMonthDropdown();
+      updateUI();
+      document.getElementById('inputDesc').value = '';
+      document.getElementById('inputValor').value = '';
+      document.getElementById('inputCategoria').value = '';
+      document.getElementById('inputPagamento').value = '';
+      document.getElementById('inputDivisao').value = '';
+      setupDateDefault();
+    }
+
+    let undoToastTimer = null;
+    let undoToastAction = null;
+
+    function showUndoToast(message, undoAction) {
+      const el = document.getElementById('undoToast');
+      document.getElementById('undoToastMsg').innerText = message;
+      undoToastAction = undoAction;
+      el.classList.remove('hidden');
+      clearTimeout(undoToastTimer);
+      undoToastTimer = setTimeout(hideUndoToast, 7000);
+    }
+
+    function hideUndoToast() {
+      document.getElementById('undoToast').classList.add('hidden');
+      undoToastAction = null;
+      clearTimeout(undoToastTimer);
+    }
+
+    function runUndoToast() {
+      const action = undoToastAction;
+      hideUndoToast();
+      if (action) action();
+    }
+
+    function deleteLancamento(id) {
+      const idx = state.transactions.findIndex(t => t.id === id);
+      if (idx === -1) return;
+      const removed = state.transactions[idx];
+      state.transactions.splice(idx, 1);
+      saveState();
+      updateUI();
+      showUndoToast('Lançamento excluído', () => {
+        state.transactions.splice(Math.min(idx, state.transactions.length), 0, removed);
+        saveState();
+        updateUI();
+      });
+    }
+
+    let currentDetailTxId = null;
+
+    function openDetalheLancamento(id) {
+      const tx = state.transactions.find(t => t.id === id);
+      if (!tx) return;
+      currentDetailTxId = id;
+
+      document.getElementById('detalheLancamentoTitle').innerText = 'Detalhes do Lançamento';
+      const val = parseFloat(tx.value) || 0;
+      const lauraPart = tx.split === '60/40 Casal' ? val * 0.40 : val;
+
+      document.getElementById('detalheLancamentoBody').innerHTML = `
+        <div class="bg-cream p-3 rounded-xl border border-taupe-soft/40 space-y-2">
+          <div class="flex justify-between"><span class="text-taupe">Descrição:</span><span class="font-bold text-plum text-right">${tx.desc}</span></div>
+          <div class="flex justify-between"><span class="text-taupe">Data:</span><span class="font-semibold text-plum font-numeric">${formatDateBR(tx.date)}</span></div>
+          <div class="flex justify-between"><span class="text-taupe">Categoria:</span><span class="font-semibold text-plum">${tx.cat}</span></div>
+          <div class="flex justify-between"><span class="text-taupe">Pagamento:</span><span class="font-semibold text-plum">${tx.method}</span></div>
+          <div class="flex justify-between"><span class="text-taupe">Regra de Divisão:</span><span class="font-semibold text-plum">${tx.split}</span></div>
+          <div class="flex justify-between border-t border-taupe-soft/30 pt-2"><span class="text-taupe">Valor Total:</span><span class="font-bold text-plum font-numeric">${formatR$(val)}</span></div>
+          <div class="flex justify-between"><span class="text-taupe">Parte Laura:</span><span class="font-bold text-plum font-numeric">${formatR$(lauraPart)}</span></div>
+        </div>
+      `;
+
+      document.getElementById('detalheLancamentoFooter').innerHTML = `
+        <button onclick="closeDetalheLancamento()" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-taupe hover:bg-cream">Fechar</button>
+        <button onclick="enableEditLancamento('${tx.id}')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-plum text-cream hover:bg-plum-hover flex items-center gap-1.5">
+          <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar
+        </button>
+      `;
+
+      document.getElementById('modalDetalheLancamento').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function enableEditLancamento(id) {
+      const tx = state.transactions.find(t => t.id === id);
+      if (!tx) return;
+
+      document.getElementById('detalheLancamentoTitle').innerText = 'Editar Lançamento';
+      const cats = ['Mercado', 'Restaurante', 'Transporte', 'Beleza/saúde', 'Casa', 'Ozzy', 'Roupas', 'Lazer', 'Presente', 'Outros'];
+      const methods = ['Cartão Casal', 'Cartão Black', 'Splitwise', 'Pix', 'Ticket VA/VR'];
+      const splits = ['60/40 Casal', '100% Laura'];
+
+      document.getElementById('detalheLancamentoBody').innerHTML = `
+        <div class="space-y-2.5">
+          <div>
+            <label class="block text-[10px] font-semibold text-taupe mb-1">Descrição</label>
+            <input type="text" id="editTxDesc" value="${tx.desc.replace(/"/g, '&quot;')}" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Valor (R$)</label>
+              <input type="number" step="0.01" id="editTxValor" value="${tx.value}" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric">
+            </div>
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Data</label>
+              <input type="date" id="editTxData" value="${tx.date}" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft font-numeric">
+            </div>
+          </div>
+          <div>
+            <label class="block text-[10px] font-semibold text-taupe mb-1">Categoria</label>
+            <select id="editTxCat" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft">
+              ${cats.map(c => `<option value="${c}" ${tx.cat === c ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Pagamento</label>
+              <select id="editTxMethod" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft">
+                ${methods.map(m => `<option value="${m}" ${tx.method === m ? 'selected' : ''}>${m}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-semibold text-taupe mb-1">Divisão</label>
+              <select id="editTxSplit" class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft">
+                ${splits.map(s => `<option value="${s}" ${tx.split === s ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('detalheLancamentoFooter').innerHTML = `
+        <button onclick="openDetalheLancamento('${tx.id}')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-taupe hover:bg-cream">Cancelar</button>
+        <button onclick="saveEditLancamento('${tx.id}')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-plum text-cream hover:bg-plum-hover">Salvar Alterações</button>
+      `;
+    }
+
+    function saveEditLancamento(id) {
+      const tx = state.transactions.find(t => t.id === id);
+      if (!tx) return;
+
+      const desc = document.getElementById('editTxDesc').value.trim();
+      const val = parseFloat(document.getElementById('editTxValor').value);
+      const date = document.getElementById('editTxData').value;
+      const cat = document.getElementById('editTxCat').value;
+      const method = document.getElementById('editTxMethod').value;
+      const split = document.getElementById('editTxSplit').value;
+
+      if (!desc || isNaN(val) || val <= 0 || !date) return;
+
+      tx.desc = desc;
+      tx.value = val;
+      // Só muda o mês se a data foi alterada (lançamentos de fatura ficam no mês de vencimento)
+      if (date !== tx.date || !tx.month) tx.month = date.slice(0, 7);
+      tx.date = date;
+      ensureMonthData(tx.month);
+      tx.cat = cat;
+      tx.method = method;
+      tx.split = split;
+
+      saveState();
+      updateUI();
+      closeDetalheLancamento();
+    }
+
+    function closeDetalheLancamento() {
+      document.getElementById('modalDetalheLancamento').classList.add('hidden');
+      currentDetailTxId = null;
+    }
+
+    let pendingInvoiceItems = [];
+    let pendingInvoiceMonth = '2026-11';
+    let pendingInvoiceCard = 'Cartão Black';
+    let pendingDuplicateIds = new Set();
+
+    const AVAILABLE_CATEGORIES = [
+      'Mercado', 'Restaurante', 'Transporte', 'Beleza/saúde',
+      'Casa', 'Ozzy', 'Roupas', 'Lazer', 'Presente', 'Outros'
+    ];
+
+    function changePreviewCardMethod(cardMethod) {
+      pendingInvoiceCard = cardMethod;
+      const defaultSplit = cardMethod === 'Cartão Casal' ? '60/40 Casal' : '100% Laura';
+      pendingInvoiceItems.forEach(item => {
+        item.split = defaultSplit;
+      });
+      renderInvoicePreview();
+    }
+
+    function renderInvoicePreview() {
+      const container = document.getElementById('invoicePreviewContainer');
+      const listEl = document.getElementById('invoicePreviewList');
+      const totalEl = document.getElementById('invoicePreviewTotal');
+      const countEl = document.getElementById('invoicePreviewCount');
+      const badgeEl = document.getElementById('invoicePreviewMonthBadge');
+      const cardSelectEl = document.getElementById('invoicePreviewCardSelect');
+      const hintEl = document.getElementById('invoicePreviewPendingHint');
+
+      if (!container || !listEl) return;
+
+      if (pendingInvoiceItems.length === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+
+      if (cardSelectEl) {
+        cardSelectEl.value = pendingInvoiceCard;
+      }
+
+      const [y, m] = pendingInvoiceMonth.split('-');
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      badgeEl.innerText = `${monthNames[parseInt(m, 10) - 1] || m} ${y}`;
+
+      let total = 0;
+      let hasUnassignedCat = false;
+
+      listEl.innerHTML = pendingInvoiceItems.map((item, idx) => {
+        const val = parseFloat(item.value) || 0;
+        total += val;
+        const missingCat = !item.cat;
+        if (missingCat) hasUnassignedCat = true;
+
+        return `
+          <div class="p-2.5 rounded-xl border ${missingCat ? 'bg-amber-50/80 border-amber-300' : 'bg-cream border-taupe-soft/50'} space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-bold text-taupe font-numeric shrink-0">${formatDateShort(item.date)}</span>
+              <input type="text" value="${item.desc.replace(/"/g, '&quot;')}" onchange="updatePreviewItem(${idx}, 'desc', this.value)" class="flex-1 min-w-0 bg-white/80 px-2 py-1 text-[11px] font-semibold text-plum rounded-lg border border-taupe-soft/40 focus:outline-none">
+              <span class="text-xs font-bold font-numeric shrink-0 ${val < 0 ? 'text-emerald-700' : 'text-plum'}">${formatR$(val)}</span>
+              <button type="button" onclick="removePreviewItem(${idx})" title="Remover item" class="text-taupe hover:text-red-600 p-0.5 shrink-0">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <select onchange="updatePreviewItem(${idx}, 'cat', this.value)" class="w-full px-2 py-1 text-[10px] font-semibold rounded-lg border ${missingCat ? 'bg-amber-100 border-amber-400 text-amber-900' : 'bg-white/80 border-taupe-soft/40 text-plum'} focus:outline-none">
+                <option value="" ${missingCat ? 'selected' : ''} disabled>Selecionar categoria...</option>
+                ${AVAILABLE_CATEGORIES.map(c => `<option value="${c}" ${item.cat === c ? 'selected' : ''}>${c}</option>`).join('')}
+              </select>
+              <select onchange="updatePreviewItem(${idx}, 'split', this.value)" class="w-full bg-white/80 px-2 py-1 text-[10px] font-semibold text-taupe rounded-lg border border-taupe-soft/40 focus:outline-none">
+                <option value="100% Laura" ${item.split === '100% Laura' ? 'selected' : ''}>100% Laura</option>
+                <option value="60/40 Casal" ${item.split === '60/40 Casal' ? 'selected' : ''}>60/40 Casal</option>
+              </select>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      totalEl.innerText = formatR$(total);
+      countEl.innerText = pendingInvoiceItems.length;
+
+      if (hintEl) {
+        if (hasUnassignedCat) {
+          hintEl.classList.remove('hidden');
+        } else {
+          hintEl.classList.add('hidden');
+        }
+      }
+
+      lucide.createIcons();
+    }
+
+    function updatePreviewItem(idx, field, value) {
+      if (!pendingInvoiceItems[idx]) return;
+      pendingInvoiceItems[idx][field] = value;
+      renderInvoicePreview();
+    }
+
+    function removePreviewItem(idx) {
+      pendingInvoiceItems.splice(idx, 1);
+      renderInvoicePreview();
+    }
+
+    function closeInvoicePreview() {
+      pendingInvoiceItems = [];
+      pendingDuplicateIds.clear();
+      const container = document.getElementById('invoicePreviewContainer');
+      const fileInput = document.getElementById('csvFileInput');
+      if (container) container.classList.add('hidden');
+      if (fileInput) fileInput.value = '';
+    }
+
+    function detectCategoryFromText(text) {
+      const s = (text || '').toLowerCase();
+      if (/supermarket|mercado|hortifruti|quitanda|carrefour|pao de acucar|st marche|assai|atacadao|cajookie|emporio|padaria/.test(s)) return 'Mercado';
+      if (/restaurante|restaurant|food|burger|pizza|sushi|ifood|ifd\*|keeta|rappi|cafe|cafeteria|lanchonete|bar |bistro|gaiteiro|vasconcellos|kado|baps|hana|tbb|ane to|ticana|cidreira|misoya|chef benon|foqui/.test(s)) return 'Restaurante';
+      if (/uber|99app|99pop|taxi|posto|shell|ipiranga|petrobras|estaciona|look park|allpark|zul |sem parar|veloe|pedagio|transporte/.test(s)) return 'Transporte';
+      if (/drogaria|droga|raia|farmacia|farma|consulta|hospital|clinica|laboratorio|fleury|exame|dentista|pilates|saude|health|creamy|soneda|perfumaria|salao|manicure|cabelo|openlaser/.test(s)) return 'Beleza/saúde';
+      if (/leroy|telhanorte|casa|decoracao|mobilia|tokstok|camicado|eletro|condominio|luz|enel|sabesp|comgas|internet|vivo|claro/.test(s)) return 'Casa';
+      if (/pet|vet|veterinari|finpet|cobasi|petz|racao|banho e tosa|ozzy/.test(s)) return 'Ozzy';
+      if (/zara|renner|riachuelo|cea|c&a|shein|shopee|corello|shoulder|hering|farm|vestuario|roupa|calcado|las hermana|tik tok shop/.test(s)) return 'Roupas';
+      if (/cinema|ingresso|teatro|show|spotify|netflix|apple\.com|amazon prime|disney|hbo|hotel|viagem|lazer|wellhub|gympass|itaushop|mercadolivre|mercado\*/.test(s)) return 'Lazer';
+      if (/presente|floricultura|giuliana|kopenhagen|cacau show/.test(s)) return 'Presente';
+      return '';
+    }
+
+    function cleanInvoiceDescription(raw) {
+      let s = (raw || '').replace(/\s+/g, ' ').trim();
+      s = s.replace(/\b(outros|saúde|saude|restaurante|transporte|vestuário|vestuario|serviços|servicos|lazer|supermercado|supermarket|health|retail)\b/gi, ' ');
+      s = s.replace(/\b(SAO PAULO|Sao Paulo|SAO|OSASCO|Osasco|RIO DE JANEIRO|RIO DE JANEIR|BARUERI|Barueri|ITAPEVI|Vila Olimpia|BRA)\b/g, ' ');
+      s = s.replace(/\s+/g, ' ').trim();
+      return s || raw.trim();
+    }
+
+    function normalizeTxDescForDup(desc) {
+      return (desc || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14);
+    }
+
+    function confirmImportPreview() {
+      if (pendingInvoiceItems.length === 0) return;
+
+      const missing = pendingInvoiceItems.filter(i => !i.cat);
+      if (missing.length > 0) {
+        alert(`Ainda há ${missing.length} lançamento(s) sem categoria. Selecione a categoria de cada item destacado antes de carregar.`);
+        return;
+      }
+
+      const existingMonthTx = state.transactions.filter(t => t.month === pendingInvoiceMonth);
+      const dupIndices = new Set();
+
+      pendingInvoiceItems.forEach((item, idx) => {
+        const itemVal = Math.round((parseFloat(item.value) || 0) * 100);
+        const itemKey = normalizeTxDescForDup(item.desc);
+
+        const isDup = existingMonthTx.some(ex => {
+          const exVal = Math.round((parseFloat(ex.value) || 0) * 100);
+          if (exVal !== itemVal) return false;
+          if (ex.date === item.date) return true;
+          const exKey = normalizeTxDescForDup(ex.desc);
+          return itemKey && exKey && (itemKey.includes(exKey) || exKey.includes(itemKey));
+        });
+
+        if (isDup) dupIndices.add(idx);
+      });
+
+      if (dupIndices.size > 0) {
+        pendingDuplicateIds = dupIndices;
+        const dupListEl = document.getElementById('duplicateItemsList');
+        dupListEl.innerHTML = Array.from(dupIndices).map(idx => {
+          const item = pendingInvoiceItems[idx];
+          return `
+            <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-300 flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="font-bold text-plum truncate">${item.desc}</div>
+                <div class="text-[10px] text-taupe font-numeric">${formatDateShort(item.date)} • ${item.cat}</div>
+              </div>
+              <div class="font-bold text-plum font-numeric shrink-0">${formatR$(item.value)}</div>
+            </div>
+          `;
+        }).join('');
+        document.getElementById('modalDuplicateWarning').classList.remove('hidden');
+        lucide.createIcons();
+        return;
+      }
+
+      finalizeInvoiceImport(false);
+    }
+
+    function closeDuplicateModal() {
+      document.getElementById('modalDuplicateWarning').classList.add('hidden');
+    }
+
+    function resolveDuplicatesImport(skipDuplicates) {
+      closeDuplicateModal();
+      finalizeInvoiceImport(skipDuplicates);
+    }
+
+    function finalizeInvoiceImport(skipDuplicates) {
+      ensureMonthData(pendingInvoiceMonth);
+
+      let importedCount = 0;
+      pendingInvoiceItems.forEach((item, idx) => {
+        if (skipDuplicates && pendingDuplicateIds.has(idx)) return;
+        state.transactions.unshift({
+          id: String(Date.now() + idx + Math.random()),
+          date: item.date,
+          month: pendingInvoiceMonth,
+          desc: item.desc.trim(),
+          value: parseFloat(item.value),
+          cat: item.cat,
+          method: pendingInvoiceCard,
+          split: item.split || (pendingInvoiceCard === 'Cartão Casal' ? '60/40 Casal' : '100% Laura')
+        });
+        importedCount++;
+      });
+
+      const importedCardLabel = pendingInvoiceCard;
+      state.selectedMonth = pendingInvoiceMonth;
+      closeInvoicePreview();
+      saveState();
+      renderMonthDropdown();
+      updateUI();
+      alert(`${importedCount} lançamento(s) carregado(s) com sucesso em ${importedCardLabel}!`);
+    }
+
+    function setImportStatus(msg, type = 'info') {
+      const banner = document.getElementById('importStatusBanner');
+      if (!banner) return;
+      if (!msg) {
+        banner.classList.add('hidden');
+        return;
+      }
+      banner.classList.remove('hidden', 'bg-plum-soft', 'text-plum', 'bg-rose-100', 'text-rose-800', 'bg-emerald-100', 'text-emerald-800');
+      if (type === 'error') {
+        banner.classList.add('bg-rose-100', 'text-rose-800');
+      } else if (type === 'success') {
+        banner.classList.add('bg-emerald-100', 'text-emerald-800');
+      } else {
+        banner.classList.add('bg-plum-soft', 'text-plum');
+      }
+      banner.innerText = msg;
+    }
+
+    function parseMoneyToken(str) {
+      if (!str) return NaN;
+      const clean = str.replace(/\s+/g, '').replace(/^R\$/, '');
+      if (!/^-?\d{1,3}(?:\.\d{3})*,\d{2}$/.test(clean) && !/^-?\d+[.,]\d{2}$/.test(clean)) return NaN;
+      const normalized = clean.includes(',')
+        ? clean.replace(/\./g, '').replace(',', '.')
+        : clean;
+      return parseFloat(normalized);
+    }
+
+    function parseDateToken(str) {
+      if (!str) return null;
+      const clean = str.replace(/\s+/g, '');
+      const m = clean.match(/^(\d{2})\/(\d{2})$/);
+      if (!m) return null;
+      const day = parseInt(m[1], 10);
+      const month = parseInt(m[2], 10);
+      if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+      return `${m[1]}/${m[2]}`;
+    }
+
+    function normalizeHeaderKey(str) {
+      return (str || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+    }
+
+    // CSV / TXT / PDF IMPORT HANDLER
+    async function handleCSVUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const btnLabel = document.getElementById('importBtnLabel');
+      const originalLabel = btnLabel ? btnLabel.innerText : 'Selecionar';
+      if (btnLabel) btnLabel.innerText = 'Lendo...';
+      setImportStatus(`Processando "${file.name}"...`, 'info');
+
+      try {
+        const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        let extracted = [];
+        let invoiceYear = state.selectedMonth.slice(0, 4);
+        let invoiceMonthNum = state.selectedMonth.slice(5, 7);
+        let officialInvoiceTotal = null;
+
+        if (isPDF) {
+          if (!window.pdfjsLib) {
+            throw new Error('Biblioteca de leitura de PDF não carregada. Verifique sua conexão e recarregue a página.');
+          }
+          const arrayBuffer = await file.arrayBuffer();
+          const loadingTask = window.pdfjsLib.getDocument({
+            data: new Uint8Array(arrayBuffer),
+            disableWorker: true
+          });
+          const pdf = await loadingTask.promise;
+
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1.0 });
+            const textContent = await page.getTextContent();
+
+            const rawItems = textContent.items
+              .filter(it => it.str && it.str.trim().length > 0)
+              .map(it => {
+                const x = it.transform[4];
+                const yTop = viewport.height - it.transform[5];
+                const w = it.width || (it.str.length * 4.5);
+                return { x, yTop, w, str: it.str.trim() };
+              });
+
+            const sortedAll = [...rawItems].sort((a, b) => (Math.abs(a.yTop - b.yTop) < 3 ? a.x - b.x : a.yTop - b.yTop));
+            const fullPageText = sortedAll.map(i => i.str).join(' ');
+
+            // Extrai vencimento e total oficial na Página 1
+            if (pageNum === 1) {
+              const vencMatch = fullPageText.match(/Vencimento\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})/i) ||
+                                fullPageText.match(/Emiss[ãa]o\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+              if (vencMatch) {
+                invoiceMonthNum = vencMatch[2];
+                invoiceYear = vencMatch[3];
+              }
+              const totalMatch = fullPageText.match(/Total desta fatura\s*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i) ||
+                                 fullPageText.match(/Lançamentos atuais\s*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+              if (totalMatch) {
+                officialInvoiceTotal = parseMoneyToken(totalMatch[1]);
+              }
+            }
+
+            const pageNormKey = normalizeHeaderKey(fullPageText);
+            if (!pageNormKey.includes('lancamentoscomprasesaques') && !pageNormKey.includes('estabelecimento')) {
+              continue;
+            }
+
+            // Detecta colunas da página usando os tokens de data (DD/MM)
+            const dateCandidates = rawItems.filter(it => parseDateToken(it.str) !== null);
+            if (dateCandidates.length === 0) continue;
+
+            const sortedDateXs = dateCandidates.map(d => d.x).sort((a, b) => a - b);
+            const colCenters = [];
+            sortedDateXs.forEach(x => {
+              if (colCenters.length === 0 || Math.abs(x - colCenters[colCenters.length - 1]) > 65) {
+                colCenters.push(x);
+              }
+            });
+
+            const colRanges = colCenters.map((cx, idx) => {
+              const minX = idx === 0 ? 0 : cx - 18;
+              const maxX = idx < colCenters.length - 1 ? colCenters[idx + 1] - 18 : viewport.width;
+              return { minX, maxX };
+            });
+
+            colRanges.forEach(range => {
+              const colItems = rawItems
+                .filter(it => it.x >= range.minX && it.x < range.maxX)
+                .sort((a, b) => (Math.abs(a.yTop - b.yTop) < 3.5 ? a.x - b.x : a.yTop - b.yTop));
+
+              if (colItems.length === 0) return;
+
+              // Agrupa por linha visual dentro desta coluna isolada
+              const visualLines = [];
+              colItems.forEach(it => {
+                const lastLine = visualLines[visualLines.length - 1];
+                if (lastLine && Math.abs(it.yTop - lastLine.yTop) <= 4.5) {
+                  lastLine.items.push(it);
+                } else {
+                  visualLines.push({ yTop: it.yTop, items: [it] });
+                }
+              });
+
+              let inComprasSection = false;
+              let stopColumn = false;
+
+              visualLines.forEach(line => {
+                if (stopColumn) return;
+                line.items.sort((a, b) => a.x - b.x);
+                const lineText = line.items.map(i => i.str).join(' ').trim();
+                const normKey = normalizeHeaderKey(lineText);
+
+                if (normKey.includes('comprasparceladas') || normKey.includes('proximasfaturas') || normKey.includes('limitesdecredito') || normKey.includes('encargoscobrados')) {
+                  stopColumn = true;
+                  inComprasSection = false;
+                  return;
+                }
+
+                if (normKey.includes('pagamentosefetuados')) {
+                  inComprasSection = false;
+                  return;
+                }
+
+                if (normKey.includes('lancamentoscomprasesaques') || (normKey.includes('estabelecimento') && normKey.includes('valoremr'))) {
+                  inComprasSection = true;
+                  return;
+                }
+
+                if (!inComprasSection) return;
+
+                if (
+                  normKey.includes('totaldoslancamentos') ||
+                  normKey.includes('lancamentosnocartao') ||
+                  normKey.includes('totaldospagamentos') ||
+                  normKey.includes('pagamentodeb') ||
+                  normKey.includes('lauraantunes')
+                ) {
+                  return;
+                }
+
+                // Extrai datas, valores e textos da linha (inclusive se houver múltiplas compras na mesma faixa Y)
+                const lineDates = [];
+                const lineValues = [];
+                const lineTexts = [];
+
+                line.items.forEach(tok => {
+                  const d = parseDateToken(tok.str);
+                  if (d) {
+                    lineDates.push({ d, x: tok.x });
+                    return;
+                  }
+                  const v = parseMoneyToken(tok.str);
+                  if (!isNaN(v) && Math.abs(v) > 0 && Math.abs(v) < 50000) {
+                    lineValues.push({ v, x: tok.x });
+                    return;
+                  }
+                  // Caso data ou valor venha colado no mesmo token de texto
+                  const comboMatch = tok.str.match(/^(\d{2}\/\d{2})\s+(.+?)\s+(-?\d{1,3}(?:\.\d{3})*[.,]\d{2})$/);
+                  if (comboMatch) {
+                    const cd = parseDateToken(comboMatch[1]);
+                    const cv = parseMoneyToken(comboMatch[3]);
+                    if (cd && !isNaN(cv)) {
+                      lineDates.push({ d: cd, x: tok.x });
+                      lineTexts.push({ str: comboMatch[2], x: tok.x + 25 });
+                      lineValues.push({ v: cv, x: tok.x + tok.w });
+                      return;
+                    }
+                  }
+                  const leadDateMatch = tok.str.match(/^(\d{2}\/\d{2})\s+(.+)$/);
+                  if (leadDateMatch && parseDateToken(leadDateMatch[1])) {
+                    lineDates.push({ d: parseDateToken(leadDateMatch[1]), x: tok.x });
+                    lineTexts.push({ str: leadDateMatch[2], x: tok.x + 25 });
+                    return;
+                  }
+                  const trailValMatch = tok.str.match(/^(.+?)\s+(-?\d{1,3}(?:\.\d{3})*[.,]\d{2})$/);
+                  if (trailValMatch && !isNaN(parseMoneyToken(trailValMatch[2]))) {
+                    lineTexts.push({ str: trailValMatch[1], x: tok.x });
+                    lineValues.push({ v: parseMoneyToken(trailValMatch[2]), x: tok.x + tok.w });
+                    return;
+                  }
+                  lineTexts.push({ str: tok.str, x: tok.x });
+                });
+
+                if (lineDates.length > 0 && lineValues.length > 0) {
+                  const count = Math.min(lineDates.length, lineValues.length);
+                  const fullDesc = cleanInvoiceDescription(lineTexts.map(t => t.str).join(' '));
+                  for (let k = 0; k < count; k++) {
+                    const [dd, mm] = lineDates[k].d.split('/');
+                    let itemYear = parseInt(invoiceYear, 10);
+                    if (parseInt(mm, 10) > parseInt(invoiceMonthNum, 10) + 2) {
+                      itemYear -= 1;
+                    }
+                    const isoDate = `${itemYear}-${mm}-${dd}`;
+                    const desc = count === 1 ? fullDesc : `${fullDesc} (${k + 1}/${count})`;
+                    if (desc.length >= 2) {
+                      extracted.push({
+                        date: isoDate,
+                        desc,
+                        value: lineValues[k].v,
+                        cat: detectCategoryFromText(desc),
+                        split: '100% Laura'
+                      });
+                    }
+                  }
+                }
+              });
+            });
+          }
+        } else {
+          // CSV ou TXT
+          const text = await file.text();
+          const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+          lines.forEach(line => {
+            const parts = line.includes(';') ? line.split(';') : line.split(',');
+            if (parts.length < 2) return;
+            let rawDate = '';
+            let desc = '';
+            let val = NaN;
+
+            parts.forEach(p => {
+              const clean = p.replace(/^"|"$/g, '').trim();
+              if (!rawDate && (/^\d{4}-\d{2}-\d{2}$/.test(clean) || /^\d{2}\/\d{2}(\/\d{2,4})?$/.test(clean))) {
+                rawDate = clean;
+              } else if (isNaN(val) && !isNaN(parseMoneyToken(clean))) {
+                val = parseMoneyToken(clean);
+              } else if (clean.length > 1) {
+                desc = desc ? `${desc} ${clean}` : clean;
+              }
+            });
+
+            if (rawDate && desc && !isNaN(val) && Math.abs(val) > 0) {
+              let isoDate = rawDate;
+              if (rawDate.includes('/')) {
+                const segs = rawDate.split('/');
+                const y = segs[2] ? (segs[2].length === 2 ? `20${segs[2]}` : segs[2]) : invoiceYear;
+                isoDate = `${y}-${segs[1].padStart(2, '0')}-${segs[0].padStart(2, '0')}`;
+              }
+              invoiceYear = isoDate.slice(0, 4);
+              invoiceMonthNum = isoDate.slice(5, 7);
+              extracted.push({
+                date: isoDate,
+                desc: cleanInvoiceDescription(desc),
+                value: val,
+                cat: detectCategoryFromText(desc),
+                split: '100% Laura'
+              });
+            }
+          });
+        }
+
+        if (extracted.length === 0) {
+          setImportStatus('Não foi possível identificar lançamentos neste arquivo. Verifique se é uma fatura válida.', 'error');
+          return;
+        }
+
+        const sumExtracted = extracted.reduce((acc, it) => acc + (parseFloat(it.value) || 0), 0);
+        if (officialInvoiceTotal !== null && Math.abs(sumExtracted - officialInvoiceTotal) <= 0.05) {
+          setImportStatus(`${extracted.length} lançamentos extraídos • Soma confere 100% com o total oficial da fatura (${formatR$(officialInvoiceTotal)}).`, 'success');
+        } else if (officialInvoiceTotal !== null) {
+          setImportStatus(`${extracted.length} lançamentos extraídos (${formatR$(sumExtracted)}) • Total oficial na fatura: ${formatR$(officialInvoiceTotal)}.`, 'info');
+        } else {
+          setImportStatus(`${extracted.length} lançamentos prontos para revisão.`, 'success');
+        }
+
+        pendingInvoiceMonth = `${invoiceYear}-${invoiceMonthNum}`;
+        pendingInvoiceCard = 'Cartão Black';
+        pendingInvoiceItems = extracted;
+        renderInvoicePreview();
+      } catch (err) {
+        console.error('Erro ao importar arquivo:', err);
+        setImportStatus(`Erro ao ler arquivo: ${err.message || 'formato inválido'}`, 'error');
+      } finally {
+        if (btnLabel) btnLabel.innerText = originalLabel;
+      }
+    }
+
+    // ACERTO RODRIGO LOGIC
+    function toggleAcertoAccordion() {
+      const content = document.getElementById('acertoAccordionContent');
+      const chevron = document.getElementById('acertoChevron');
+      content.classList.toggle('hidden');
+      chevron.classList.toggle('rotate-180');
+    }
+
+    let currentAcertoTotal = 0;
+    let currentAcertoPago = 0;
+    let currentAcertoRestante = 0;
+
+    // Soma dos pagamentos registrados no mês (aceita o formato antigo { status: 'settled', amount })
+    function getAcertoPago(month) {
+      const st = state.settlements[month];
+      if (!st) return 0;
+      if (Array.isArray(st.payments)) {
+        return st.payments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+      }
+      if (st.status === 'settled') return parseFloat(st.amount) || 0;
+      return 0;
+    }
+
+    function openModalAcerto() {
+      document.getElementById('modalAcertoTotal').innerText = formatR$(currentAcertoTotal);
+      document.getElementById('modalAcertoPago').innerText = formatR$(currentAcertoPago);
+      document.getElementById('modalAcertoValor').innerText = formatR$(Math.max(0, currentAcertoRestante));
+      const sugerido = Math.max(0, currentAcertoRestante);
+      document.getElementById('modalAcertoInput').value = sugerido > 0 ? sugerido.toFixed(2) : '';
+      document.getElementById('modalAcertoError').classList.add('hidden');
+      document.getElementById('modalAcerto').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeModalAcerto() {
+      document.getElementById('modalAcerto').classList.add('hidden');
+    }
+
+    function confirmarPagamentoAcerto() {
+      const val = Math.round((parseFloat(document.getElementById('modalAcertoInput').value) || 0) * 100) / 100;
+      const errEl = document.getElementById('modalAcertoError');
+      if (!(val > 0)) {
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      let st = state.settlements[state.selectedMonth];
+      if (!st || !Array.isArray(st.payments)) {
+        // converte o formato antigo (quitação única) para a lista de pagamentos
+        const legacy = st && st.status === 'settled'
+          ? [{ amount: parseFloat(st.amount) || 0, date: st.date }]
+          : [];
+        st = state.settlements[state.selectedMonth] = { payments: legacy };
+      }
+      st.payments.push({ amount: val, date: new Date().toISOString() });
+
+      saveState();
+      closeModalAcerto();
+      updateUI();
+    }
+
+    function reabrirAcerto() {
+      if (confirm("Deseja limpar os pagamentos registrados neste mês e reabrir o acerto?")) {
+        delete state.settlements[state.selectedMonth];
+        saveState();
+        updateUI();
+      }
+    }
+
+    // GASTOS FIXOS EDIT
+    function openGastosFixosModal() {
+      const md = state.monthsData[state.selectedMonth] || { financiamento: 0, condominio: 0 };
+      document.getElementById('editFinanciamento').value = md.financiamento;
+      document.getElementById('editCondominio').value = md.condominio;
+      document.getElementById('modalGastosFixos').classList.remove('hidden');
+    }
+
+    function closeGastosFixosModal() {
+      document.getElementById('modalGastosFixos').classList.add('hidden');
+    }
+
+    function saveGastosFixos() {
+      const f = parseFloat(document.getElementById('editFinanciamento').value);
+      const c = parseFloat(document.getElementById('editCondominio').value);
+      if (isNaN(f) || isNaN(c)) return;
+
+      if (!state.monthsData[state.selectedMonth]) {
+        state.monthsData[state.selectedMonth] = { salarioCasal: 20874, salarioLaura: 8374, investidoLaura: 0, financiamento: f, condominio: c, cartaoCasalTotal: 0 };
+      } else {
+        state.monthsData[state.selectedMonth].financiamento = f;
+        state.monthsData[state.selectedMonth].condominio = c;
+      }
+      saveState();
+      closeGastosFixosModal();
+      updateUI();
+    }
+
+    // EDIT RECEITA
+    function editReceitaPrompt() {
+      const md = state.monthsData[state.selectedMonth];
+      if (!md) return;
+      const isInd = state.viewMode === 'individual';
+      const currentVal = isInd ? md.salarioLaura : md.salarioCasal;
+      const label = isInd ? "Receita Individual (Laura)" : "Receita Total do Casal";
+
+      const [year, month] = state.selectedMonth.split('-');
+      const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      const monthLabel = monthNames[parseInt(month, 10) - 1] ? `${monthNames[parseInt(month, 10) - 1]} ${year}` : state.selectedMonth;
+
+      document.getElementById('modalReceitaTitle').innerText = `Editar Receita (${monthLabel})`;
+      document.getElementById('modalReceitaLabel').innerText = label;
+      document.getElementById('editReceitaValor').value = currentVal;
+      document.getElementById('modalReceitaError').classList.add('hidden');
+      document.getElementById('modalEditReceita').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeEditReceitaModal() {
+      document.getElementById('modalEditReceita').classList.add('hidden');
+    }
+
+    function saveEditReceita() {
+      const md = state.monthsData[state.selectedMonth];
+      if (!md) return;
+      const raw = document.getElementById('editReceitaValor').value.replace(',', '.');
+      const num = parseFloat(raw);
+      const errEl = document.getElementById('modalReceitaError');
+
+      if (isNaN(num) || num < 0) {
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      errEl.classList.add('hidden');
+      if (state.viewMode === 'individual') {
+        md.salarioLaura = num;
+      } else {
+        md.salarioCasal = num;
+      }
+
+      saveState();
+      closeEditReceitaModal();
+      updateUI();
+    }
+
+    // METAS TAB LOGIC
+    function renderMetasSection() {
+      ensureGoalsList();
+      const container = document.getElementById('goalsContainer');
+      const activeGoals = state.goalsList.filter(g => !g.completed);
+      const completedGoals = state.goalsList.filter(g => g.completed);
+
+      const totalAcumulado = activeGoals.reduce((sum, g) => sum + (parseFloat(g.current) || 0), 0);
+      const aporteAtualMes = state.goalsList.reduce((sum, g) => {
+        const contrib = (g.monthlyContributions && g.monthlyContributions[state.selectedMonth]) || 0;
+        return sum + contrib;
+      }, 0);
+
+      document.getElementById('metaTotalAcumulado').innerText = formatR$(totalAcumulado);
+      document.getElementById('metaAporteAtual').innerText = formatR$(aporteAtualMes);
+
+      const renderGoalCard = (g) => {
+        const pct = g.target > 0 ? Math.min(100, (g.current / g.target) * 100) : 0;
+        const statusBadge = g.completed
+          ? `<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">Concluída ✓</span>`
+          : `<span class="text-[11px] font-bold text-plum font-numeric">${pct.toFixed(0)}%</span>`;
+
+        return `
+          <div onclick="openModalDetalheMeta('${g.id}')" class="bg-cream-card rounded-2xl p-4 shadow-sm border ${g.completed ? 'border-emerald-300/70 opacity-85' : 'border-taupe-soft/50'} space-y-2.5 cursor-pointer hover:border-plum/40 transition-colors">
+            <div class="flex justify-between items-center gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 rounded-xl ${g.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-plum-soft text-plum'} flex items-center justify-center shrink-0">
+                  <i data-lucide="${g.icon || 'target'}" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0">
+                  <h4 class="font-bold text-plum text-xs truncate">${g.name}</h4>
+                  <span class="text-[10px] text-taupe font-numeric">Alvo: ${formatR$(g.target)}</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                ${statusBadge}
+                <i data-lucide="chevron-right" class="w-4 h-4 text-taupe"></i>
+              </div>
+            </div>
+
+            <div class="w-full h-2.5 bg-cream-dark rounded-full overflow-hidden">
+              <div class="${g.completed ? 'bg-emerald-600' : 'bg-plum'} h-full rounded-full transition-all duration-300" style="width: ${g.completed ? 100 : pct}%"></div>
+            </div>
+
+            <div class="flex justify-between items-center text-[11px] font-numeric">
+              <span class="font-bold text-plum">${formatR$(g.current)}</span>
+              <span class="text-taupe">${g.completed ? 'Meta alcançada' : `Faltam ${formatR$(Math.max(0, g.target - g.current))}`}</span>
+            </div>
+          </div>
+        `;
+      };
+
+      let html = '';
+      if (activeGoals.length === 0 && completedGoals.length === 0) {
+        html = `<div class="bg-cream-card rounded-2xl p-6 text-center text-xs text-taupe border border-taupe-soft/50">Nenhuma meta cadastrada. Clique em "+ Nova Meta" para começar.</div>`;
+      } else {
+        html += activeGoals.map(renderGoalCard).join('');
+        if (completedGoals.length > 0) {
+          html += `
+            <div class="pt-2">
+              <div class="text-[11px] font-bold uppercase tracking-wider text-taupe mb-2 px-1">Metas Concluídas (${completedGoals.length})</div>
+              <div class="space-y-2.5">
+                ${completedGoals.map(renderGoalCard).join('')}
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      container.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    function openModalNovaMeta() {
+      document.getElementById('novaMetaNome').value = '';
+      document.getElementById('novaMetaAlvo').value = '';
+      document.getElementById('novaMetaInicial').value = '0';
+      document.getElementById('novaMetaIcone').value = 'target';
+      document.getElementById('modalNovaMeta').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeModalNovaMeta() {
+      document.getElementById('modalNovaMeta').classList.add('hidden');
+    }
+
+    function salvarNovaMeta(e) {
+      e.preventDefault();
+      ensureGoalsList();
+      const name = document.getElementById('novaMetaNome').value.trim();
+      const target = parseFloat(document.getElementById('novaMetaAlvo').value);
+      const initial = parseFloat(document.getElementById('novaMetaInicial').value) || 0;
+      const icon = document.getElementById('novaMetaIcone').value || 'target';
+
+      if (!name || isNaN(target) || target <= 0) return;
+
+      const contributions = {};
+      if (initial > 0) {
+        contributions[state.selectedMonth] = initial;
+      }
+
+      state.goalsList.push({
+        id: 'goal_' + Date.now(),
+        name,
+        target,
+        current: Math.max(0, initial),
+        icon,
+        completed: false,
+        monthlyContributions: contributions
+      });
+
+      saveState();
+      closeModalNovaMeta();
+      renderMetasSection();
+    }
+
+    let selectedDetailMetaId = null;
+
+    function openModalDetalheMeta(goalId) {
+      ensureGoalsList();
+      const goal = state.goalsList.find(g => g.id === goalId);
+      if (!goal) return;
+      selectedDetailMetaId = goalId;
+
+      document.getElementById('detalheMetaNome').innerText = goal.name;
+      document.getElementById('detalheMetaSaldo').innerText = formatR$(goal.current);
+      document.getElementById('detalheMetaObjetivo').innerText = formatR$(goal.target);
+
+      const badge = document.getElementById('detalheMetaBadge');
+      if (goal.completed) {
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      renderMetaEvolucaoChart(goal);
+
+      const footer = document.getElementById('detalheMetaFooter');
+      footer.innerHTML = `
+        <button onclick="excluirMeta('${goal.id}')" class="px-3 py-2 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Excluir
+        </button>
+        ${goal.completed ? `
+          <button onclick="reabrirMeta('${goal.id}')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-plum bg-plum-soft hover:bg-plum/15 flex items-center gap-1">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reabrir Meta
+          </button>
+        ` : `
+          <button onclick="concluirMeta('${goal.id}')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-700 text-white hover:bg-emerald-800 flex items-center gap-1.5 shadow-xs">
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Concluir Meta
+          </button>
+        `}
+      `;
+
+      document.getElementById('modalDetalheMeta').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeModalDetalheMeta() {
+      document.getElementById('modalDetalheMeta').classList.add('hidden');
+      selectedDetailMetaId = null;
+    }
+
+    function renderMetaEvolucaoChart(goal) {
+      const svg = document.getElementById('metaEvolucaoChart');
+      if (!svg) return;
+      svg.innerHTML = '';
+
+      const months = Object.keys(state.monthsData).sort().slice(-6);
+      const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      const contribs = goal.monthlyContributions || {};
+      const values = months.map(m => parseFloat(contribs[m]) || 0);
+      const maxVal = Math.max(...values, 100);
+
+      const width = 280;
+      const height = 135;
+      const padTop = 20;
+      const padBottom = 22;
+      const padLeft = 10;
+      const padRight = 10;
+      const chartH = height - padTop - padBottom;
+      const chartW = width - padLeft - padRight;
+      const slotW = months.length > 0 ? chartW / months.length : chartW;
+      const barW = Math.min(28, slotW * 0.56);
+
+      const baseLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      baseLine.setAttribute("x1", padLeft);
+      baseLine.setAttribute("y1", padTop + chartH);
+      baseLine.setAttribute("x2", width - padRight);
+      baseLine.setAttribute("y2", padTop + chartH);
+      baseLine.setAttribute("stroke", "#D9CFC4");
+      baseLine.setAttribute("stroke-width", "1");
+      svg.appendChild(baseLine);
+
+      months.forEach((mKey, idx) => {
+        const val = values[idx];
+        const [, m] = mKey.split('-');
+        const label = monthNames[parseInt(m) - 1];
+        const centerX = padLeft + idx * slotW + slotW / 2;
+        const barH = val > 0 ? Math.max((val / maxVal) * chartH, 4) : 2;
+        const barY = padTop + chartH - barH;
+
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", centerX - barW / 2);
+        rect.setAttribute("y", barY);
+        rect.setAttribute("width", barW);
+        rect.setAttribute("height", barH);
+        rect.setAttribute("rx", "4");
+        rect.setAttribute("fill", val > 0 ? "#4A1D2F" : "#D9CFC4");
+        svg.appendChild(rect);
+
+        const topTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        topTxt.setAttribute("x", centerX);
+        topTxt.setAttribute("y", barY - 4);
+        topTxt.setAttribute("text-anchor", "middle");
+        topTxt.setAttribute("font-size", "7.5");
+        topTxt.setAttribute("font-weight", "700");
+        topTxt.setAttribute("fill", val > 0 ? "#4A1D2F" : "#8F7B6C");
+        topTxt.textContent = val >= 1000 ? `${(val / 1000).toFixed(1).replace('.', ',')}k` : `${Math.round(val)}`;
+        svg.appendChild(topTxt);
+
+        const mTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        mTxt.setAttribute("x", centerX);
+        mTxt.setAttribute("y", height - 5);
+        mTxt.setAttribute("text-anchor", "middle");
+        mTxt.setAttribute("font-size", "9");
+        mTxt.setAttribute("font-weight", mKey === state.selectedMonth ? "700" : "500");
+        mTxt.setAttribute("fill", mKey === state.selectedMonth ? "#4A1D2F" : "#8F7B6C");
+        mTxt.textContent = label;
+        svg.appendChild(mTxt);
+      });
+    }
+
+    function concluirMeta(goalId) {
+      ensureGoalsList();
+      const goal = state.goalsList.find(g => g.id === goalId);
+      if (!goal) return;
+      goal.completed = true;
+      saveState();
+      closeModalDetalheMeta();
+      renderMetasSection();
+    }
+
+    function reabrirMeta(goalId) {
+      ensureGoalsList();
+      const goal = state.goalsList.find(g => g.id === goalId);
+      if (!goal) return;
+      goal.completed = false;
+      saveState();
+      closeModalDetalheMeta();
+      renderMetasSection();
+    }
+
+    function excluirMeta(goalId) {
+      ensureGoalsList();
+      const goal = state.goalsList.find(g => g.id === goalId);
+      if (!goal) return;
+      if (!confirm(`Deseja realmente excluir a meta "${goal.name}"?`)) return;
+      state.goalsList = state.goalsList.filter(g => g.id !== goalId);
+      saveState();
+      closeModalDetalheMeta();
+      renderMetasSection();
+    }
+
+    function openModalAporteResgate() {
+      ensureGoalsList();
+      const select = document.getElementById('metaDestino');
+      const activeGoals = state.goalsList.filter(g => !g.completed);
+      if (activeGoals.length === 0) {
+        alert("Crie uma meta ativa antes de registrar um aporte ou resgate.");
+        return;
+      }
+      select.innerHTML = activeGoals.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+      document.getElementById('valorMovimentacao').value = '';
+      document.getElementById('modalAporteResgate').classList.remove('hidden');
+    }
+
+    function closeModalAporteResgate() {
+      document.getElementById('modalAporteResgate').classList.add('hidden');
+    }
+
+    function salvarAporteResgate() {
+      ensureGoalsList();
+      const tipo = document.getElementById('tipoMovimentacao').value;
+      const destinoId = document.getElementById('metaDestino').value;
+      const val = parseFloat(document.getElementById('valorMovimentacao').value);
+      if (isNaN(val) || val <= 0) return;
+
+      const goal = state.goalsList.find(g => g.id === destinoId);
+      if (!goal) return;
+
+      if (!goal.monthlyContributions) goal.monthlyContributions = {};
+      const currentMonthContrib = parseFloat(goal.monthlyContributions[state.selectedMonth]) || 0;
+
+      if (tipo === 'aporte') {
+        goal.current += val;
+        goal.monthlyContributions[state.selectedMonth] = currentMonthContrib + val;
+      } else {
+        goal.current = Math.max(0, goal.current - val);
+        goal.monthlyContributions[state.selectedMonth] = Math.max(0, currentMonthContrib - val);
+      }
+
+      if (destinoId === 'reserva') state.goals.reserva = goal.current;
+      if (destinoId === 'viagens') state.goals.viagens = goal.current;
+
+      saveState();
+      closeModalAporteResgate();
+      renderMetasSection();
+    }
+
+    // CURRENCY FORMATTER
+    function formatR$(value) {
+      const num = parseFloat(value) || 0;
+      return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+  </script>
+
+  <!-- SERVICE WORKER (uso offline / app instalável; só funciona em https ou localhost) -->
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>
