@@ -76,6 +76,10 @@
             <span>Importar Backup</span>
             <input type="file" id="backupFileInput" accept=".json,application/json" onchange="importBackupJSON(event)" class="hidden">
           </label>
+          <button type="button" onclick="forgetCategoryMemory()" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-plum hover:bg-plum-soft transition-colors text-left">
+            <i data-lucide="eraser" class="w-4 h-4 text-plum shrink-0"></i>
+            <span>Esquecer categorias lembradas</span>
+          </button>
           <div id="lastBackupInfo" class="px-3 pt-1.5 pb-1 text-[10px] text-taupe border-t border-taupe-soft/50"></div>
         </div>
       </div>
@@ -190,6 +194,10 @@
             <div id="acertoRowOutros" class="flex justify-between text-taupe">
               <span>Outros 60/40 pagos por Laura (60%)</span>
               <span id="acertoCompOutros" class="font-semibold font-numeric text-plum">R$ 0,00</span>
+            </div>
+            <div id="acertoRowParaRodrigo" class="flex justify-between text-taupe">
+              <span>Pagos por Laura para Rodrigo (100%)</span>
+              <span id="acertoCompParaRodrigo" class="font-semibold font-numeric text-plum">R$ 0,00</span>
             </div>
             <div id="acertoRowRodrigo" class="flex justify-between text-taupe">
               <span>Pagos por Rodrigo (parte da Laura)</span>
@@ -361,7 +369,7 @@
           <div class="grid grid-cols-3 gap-2">
             <div class="col-span-2">
               <label class="block text-[10px] font-semibold text-taupe mb-1">Descrição</label>
-              <input type="text" id="inputDesc" placeholder="Ex: Mercado, Jantar..." required class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
+              <input type="text" id="inputDesc" onchange="autofillCategoryFromDescription(this.value)" placeholder="Ex: Mercado, Jantar..." required class="w-full bg-cream px-3 py-2 text-xs rounded-xl border border-taupe-soft focus:outline-none focus:ring-1 focus:ring-plum">
             </div>
             <div>
               <label class="block text-[10px] font-semibold text-taupe mb-1">Valor (R$)</label>
@@ -413,6 +421,7 @@
                 <option value="" selected disabled></option>
                 <option value="60/40 Casal">60/40 Casal</option>
                 <option value="100% Laura">100% Laura</option>
+                <option value="100% Rodrigo">100% Rodrigo</option>
               </select>
             </div>
           </div>
@@ -862,7 +871,9 @@
         viagens: 2700.00
       },
       goalsList: null,
-      lastBackupAt: null
+      lastBackupAt: null,
+      categoryMemory: {},        // descrição normalizada -> categoria que a Laura escolheu
+      categoryMemorySeeded: false
     };
 
     const DEFAULT_GOALS_LIST = [
@@ -968,11 +979,13 @@
     function updateBackupInfo() {
       const el = document.getElementById('lastBackupInfo');
       if (!el) return;
+      const nCats = Object.keys(state.categoryMemory || {}).length;
+      const catInfo = `${nCats} categoria${nCats === 1 ? '' : 's'} lembrada${nCats === 1 ? '' : 's'}`;
       if (!state.lastBackupAt) {
-        el.innerText = 'Nenhum backup salvo ainda';
+        el.innerText = `Nenhum backup salvo ainda · ${catInfo}`;
         return;
       }
-      el.innerText = `Último backup: ${formatDateShort(localISODate(new Date(state.lastBackupAt)))}`;
+      el.innerText = `Último backup: ${formatDateShort(localISODate(new Date(state.lastBackupAt)))} · ${catInfo}`;
     }
 
     // Salva o backup: no celular abre a folha de compartilhar (Arquivos, iCloud, Drive...);
@@ -1046,11 +1059,14 @@
             settlements: restored.settlements && typeof restored.settlements === 'object' ? restored.settlements : {},
             goals: restored.goals && typeof restored.goals === 'object' ? restored.goals : { reserva: 7500.00, viagens: 2700.00 },
             goalsList: Array.isArray(restored.goalsList) ? restored.goalsList : null,
-            lastBackupAt: restored.lastBackupAt || null
+            lastBackupAt: restored.lastBackupAt || null,
+            categoryMemory: restored.categoryMemory && typeof restored.categoryMemory === 'object' ? restored.categoryMemory : {},
+            categoryMemorySeeded: !!restored.categoryMemorySeeded
           };
 
           normalizeCategories();
           ensureGoalsList();
+          seedCategoryMemory();
           saveState();
           renderMonthDropdown();
           updateUI();
@@ -1067,6 +1083,7 @@
       loadState();
       normalizeCategories();
       ensureGoalsList();
+      seedCategoryMemory();
       setupDateDefault();
       renderMonthDropdown();
       updateUI();
@@ -1311,6 +1328,7 @@
       let cartaoCasalShareRodrigo = 0; // 60% dos itens do Cartão Casal pagos pela Laura
       let outrosShareRodrigo = 0;      // 60% dos demais itens 60/40 pagos pela Laura (Pix, Cartão Black...)
       let rodrigoPagouTotal = 0;       // o que a Laura deve ao Rodrigo pelos itens que ele pagou
+      let paraRodrigoTotal = 0;        // itens 100% do Rodrigo que a Laura pagou (ele deve o valor inteiro)
 
       mTx.forEach(t => {
         const val = parseFloat(t.value) || 0;
@@ -1326,6 +1344,10 @@
           } else {
             outrosShareRodrigo += val * 0.60;
           }
+        } else if (t.split === '100% Rodrigo') {
+          // 100% Rodrigo não entra nos gastos da Laura (nem individual, nem casal);
+          // se a Laura pagou, o Rodrigo deve o valor inteiro a ela
+          if (t.payer !== 'Rodrigo') paraRodrigoTotal += val;
         } else {
           // 100% Laura entra apenas na visão individual
           totalGastosLancamentosIndividual += val;
@@ -1368,9 +1390,10 @@
       const acertoSplitwise = splitwiseShareRodrigo;
       const acertoOutros = outrosShareRodrigo;
       const acertoRodrigoPagou = rodrigoPagouTotal;
+      const acertoParaRodrigo = paraRodrigoTotal;
       // Saldo líquido: positivo = Rodrigo deve à Laura; negativo = Laura deve ao Rodrigo
       // (financiamento e condomínio são sempre pagos pela Laura, em débito automático)
-      const acertoTotalCalc = acertoFinanc + acertoCond + acertoCartaoCasal + acertoSplitwise + acertoOutros - acertoRodrigoPagou;
+      const acertoTotalCalc = acertoFinanc + acertoCond + acertoCartaoCasal + acertoSplitwise + acertoOutros + acertoParaRodrigo - acertoRodrigoPagou;
 
       // Pagamentos já feitos entre vocês (positivo = Rodrigo -> Laura; negativo = Laura -> Rodrigo)
       const acertoPago = getAcertoPago(state.selectedMonth);
@@ -1447,6 +1470,8 @@
       document.getElementById('acertoRowSplitwise').classList.toggle('hidden', acertoSplitwise <= 0.004);
       document.getElementById('acertoCompOutros').innerText = formatR$(acertoOutros);
       document.getElementById('acertoRowOutros').classList.toggle('hidden', acertoOutros <= 0.004);
+      document.getElementById('acertoCompParaRodrigo').innerText = formatR$(acertoParaRodrigo);
+      document.getElementById('acertoRowParaRodrigo').classList.toggle('hidden', acertoParaRodrigo <= 0.004);
       document.getElementById('acertoCompRodrigo').innerText = '− ' + formatR$(acertoRodrigoPagou);
       document.getElementById('acertoRowRodrigo').classList.toggle('hidden', acertoRodrigoPagou <= 0.004);
       document.getElementById('acertoCompTotal').innerText = describeSaldo(acertoTotalCalc);
@@ -1498,6 +1523,8 @@
           if (t.split === '60/40 Casal') {
             varInd += val * 0.40;
             varCasal += val;
+          } else if (t.split === '100% Rodrigo') {
+            // não entra nos gastos da Laura nem do casal
           } else {
             // 100% Laura entra apenas na visão individual
             varInd += val;
@@ -1642,7 +1669,8 @@
         const mTx = state.transactions.filter(t => t.month === mKey);
 
         mTx.forEach(t => {
-          // Na visão casal, ignora lançamentos 100% Laura
+          // 100% Rodrigo nunca entra; na visão casal, ignora também os 100% Laura
+          if (t.split === '100% Rodrigo') return;
           if (state.viewMode === 'casal' && t.split !== '60/40 Casal') return;
           const v = parseFloat(t.value) || 0;
           const val = state.viewMode === 'individual' && t.split === '60/40 Casal' ? v * 0.40 : v;
@@ -1818,7 +1846,8 @@
       }
 
       mTx.forEach(t => {
-        // Na visão casal, ignora lançamentos 100% Laura
+        // 100% Rodrigo nunca entra; na visão casal, ignora também os 100% Laura
+        if (t.split === '100% Rodrigo') return;
         if (state.viewMode === 'casal' && t.split !== '60/40 Casal') return;
         const v = parseFloat(t.value) || 0;
         const val = state.viewMode === 'individual' && t.split === '60/40 Casal' ? v * 0.40 : v;
@@ -1996,6 +2025,7 @@
         payer
       });
 
+      learnCategory(desc, cat);
       state.selectedMonth = month;
       saveState();
       renderMonthDropdown();
@@ -2056,7 +2086,7 @@
 
       document.getElementById('detalheLancamentoTitle').innerText = 'Detalhes do Lançamento';
       const val = parseFloat(tx.value) || 0;
-      const lauraPart = tx.split === '60/40 Casal' ? val * 0.40 : val;
+      const lauraPart = tx.split === '60/40 Casal' ? val * 0.40 : (tx.split === '100% Rodrigo' ? 0 : val);
 
       document.getElementById('detalheLancamentoBody').innerHTML = `
         <div class="bg-cream p-3 rounded-xl border border-taupe-soft/40 space-y-2">
@@ -2091,7 +2121,7 @@
       const methods = ['Cartão Casal', 'Cartão Black', 'Pix', 'Ticket VA/VR'];
       const legacyMethod = tx.method && !methods.includes(tx.method) ? tx.method : null;
       if (legacyMethod) methods.push(legacyMethod);
-      const splits = ['60/40 Casal', '100% Laura'];
+      const splits = ['60/40 Casal', '100% Laura', '100% Rodrigo'];
 
       document.getElementById('detalheLancamentoBody').innerHTML = `
         <div class="space-y-2.5">
@@ -2165,6 +2195,7 @@
       if (date !== tx.date || !tx.month) tx.month = date.slice(0, 7);
       tx.date = date;
       ensureMonthData(tx.month);
+      if (cat !== tx.cat) learnCategory(desc, cat);
       tx.cat = cat;
       tx.method = method;
       tx.split = split;
@@ -2252,6 +2283,7 @@
               <select onchange="updatePreviewItem(${idx}, 'split', this.value)" class="w-full bg-white/80 px-2 py-1 text-[10px] font-semibold text-taupe rounded-lg border border-taupe-soft/40 focus:outline-none">
                 <option value="100% Laura" ${item.split === '100% Laura' ? 'selected' : ''}>100% Laura</option>
                 <option value="60/40 Casal" ${item.split === '60/40 Casal' ? 'selected' : ''}>60/40 Casal</option>
+                <option value="100% Rodrigo" ${item.split === '100% Rodrigo' ? 'selected' : ''}>100% Rodrigo</option>
               </select>
             </div>
           </div>
@@ -2290,6 +2322,60 @@
       const fileInput = document.getElementById('csvFileInput');
       if (container) container.classList.add('hidden');
       if (fileInput) fileInput.value = '';
+    }
+
+    // ---- MEMÓRIA DE CATEGORIAS ----
+    // Chave = as 2 primeiras palavras da descrição (sem acentos, números nem parcelas):
+    // "UBER *TRIP 1234" e "Uber Trip" viram "uber trip".
+    function categoryMemoryKey(desc) {
+      let t = (desc || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      t = t.replace(/\(\d+\/\d+\)/g, ' ').replace(/\b\d{1,2}\/\d{1,2}\b/g, ' ').replace(/parc(ela)?\.?\s*\d*/g, ' ');
+      const tokens = t.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(w => w.length >= 2 && !['de', 'da', 'do', 'das', 'dos', 'em', 'no', 'na', 'com'].includes(w));
+      return tokens.slice(0, 2).join(' ');
+    }
+
+    function learnCategory(desc, cat) {
+      const key = categoryMemoryKey(desc);
+      if (!key || !cat || !AVAILABLE_CATEGORIES.includes(cat)) return;
+      if (!state.categoryMemory || typeof state.categoryMemory !== 'object') state.categoryMemory = {};
+      state.categoryMemory[key] = cat;
+    }
+
+    // Primeiro a categoria que ela já escolheu antes; se não houver, a sugestão automática por palavras
+    function suggestCategory(desc) {
+      const key = categoryMemoryKey(desc);
+      const mem = state.categoryMemory || {};
+      if (key && mem[key] && AVAILABLE_CATEGORIES.includes(mem[key])) return mem[key];
+      return detectCategoryFromText(desc);
+    }
+
+    // Na primeira abertura depois da atualização, aprende com os lançamentos que já existem
+    function seedCategoryMemory() {
+      if (!state.categoryMemory || typeof state.categoryMemory !== 'object') state.categoryMemory = {};
+      if (state.categoryMemorySeeded) return;
+      [...state.transactions]
+        .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+        .forEach(t => learnCategory(t.desc, t.cat));
+      state.categoryMemorySeeded = true;
+      saveState();
+    }
+
+    function autofillCategoryFromDescription(desc) {
+      const sel = document.getElementById('inputCategoria');
+      if (!sel || sel.value) return; // não mexe se ela já escolheu
+      const sug = suggestCategory(desc);
+      if (sug) sel.value = sug;
+    }
+
+    function forgetCategoryMemory() {
+      const n = Object.keys(state.categoryMemory || {}).length;
+      const menu = document.getElementById('headerBackupMenu');
+      if (menu) menu.classList.add('hidden');
+      if (!confirm(`Esquecer as ${n} categorias lembradas? Seus lançamentos não mudam; só as sugestões automáticas voltam ao padrão.`)) return;
+      state.categoryMemory = {};
+      state.categoryMemorySeeded = true; // não reaprender dos lançamentos antigos
+      saveState();
+      updateBackupInfo();
     }
 
     function detectCategoryFromText(text) {
@@ -2393,6 +2479,7 @@
           method: pendingInvoiceCard,
           split: item.split || (pendingInvoiceCard === 'Cartão Casal' ? '60/40 Casal' : '100% Laura')
         });
+        learnCategory(item.desc, item.cat);
         importedCount++;
       });
 
@@ -2649,7 +2736,7 @@
                         date: isoDate,
                         desc,
                         value: lineValues[k].v,
-                        cat: detectCategoryFromText(desc),
+                        cat: suggestCategory(desc),
                         split: '100% Laura'
                       });
                     }
@@ -2693,7 +2780,7 @@
                 date: isoDate,
                 desc: cleanInvoiceDescription(desc),
                 value: val,
-                cat: detectCategoryFromText(desc),
+                cat: suggestCategory(desc),
                 split: '100% Laura'
               });
             }
