@@ -96,10 +96,10 @@
     <!-- Segmented Toggle (Individual vs Casal) -->
     <div class="mt-3 p-1 bg-cream-dark/60 rounded-xl flex items-center text-xs font-semibold text-taupe">
       <button id="toggleIndividual" onclick="setViewMode('individual')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">
-        Visão Individual
+        Laura
       </button>
       <button id="toggleCasal" onclick="setViewMode('casal')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">
-        Visão Casal (100%)
+        Casal
       </button>
     </div>
   </header>
@@ -243,12 +243,12 @@
       </div>
 
       <!-- Filtro dos gráficos (só aparece na Visão Individual) -->
-      <div id="chartScopeRow" class="space-y-1.5">
+      <div id="chartScopeRow" class="space-y-1.5 sticky z-20 bg-[#F3EDE4] -mx-4 px-4 py-2" style="top: var(--header-h, 0px)">
         <div class="px-1 text-[10px] uppercase tracking-wider font-semibold text-taupe">Gráficos mostram</div>
         <div class="p-1 bg-cream-dark/60 rounded-xl flex items-center text-[11px] font-semibold text-taupe">
-          <button type="button" id="chartScopeTudo" onclick="setChartScope('tudo')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">Tudo</button>
-          <button type="button" id="chartScopeLaura" onclick="setChartScope('laura')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">Só 100% Laura</button>
-          <button type="button" id="chartScopeCasal" onclick="setChartScope('casal')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">Compartilhado (40%)</button>
+          <button type="button" id="chartScopeTudo" onclick="setChartScope('tudo')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">Total</button>
+          <button type="button" id="chartScopeLaura" onclick="setChartScope('laura')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">100% Laura</button>
+          <button type="button" id="chartScopeCasal" onclick="setChartScope('casal')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">40% Casal</button>
         </div>
       </div>
 
@@ -1327,7 +1327,20 @@
       updateUI();
     }
 
+    // Mantém o filtro dos gráficos colado logo abaixo do cabeçalho fixo
+    function syncHeaderHeight() {
+      const h = document.querySelector('header');
+      if (h) document.documentElement.style.setProperty('--header-h', h.offsetHeight + 'px');
+    }
+    window.addEventListener('resize', syncHeaderHeight);
+    window.addEventListener('load', syncHeaderHeight);
+    if (window.ResizeObserver) {
+      const hdr = document.querySelector('header');
+      if (hdr) new ResizeObserver(syncHeaderHeight).observe(hdr);
+    }
+
     function updateUI() {
+      syncHeaderHeight();
       // Toggle styles
       const btnInd = document.getElementById('toggleIndividual');
       const btnCas = document.getElementById('toggleCasal');
@@ -1556,12 +1569,12 @@
       document.getElementById('chartScopeLaura').className = base + (sc === 'laura' ? on : off);
       document.getElementById('chartScopeCasal').className = base + (sc === 'casal' ? on : off);
 
-      const suffix = sc === 'laura' ? ' · só 100% Laura' : (sc === 'casal' ? ' · compartilhado (40%)' : '');
+      const suffix = sc === 'laura' ? ' · 100% Laura' : (sc === 'casal' ? ' · 40% Casal' : '');
       document.getElementById('lineChartTitle').innerText = 'Evolução Mensal de Gastos' + suffix;
       document.getElementById('catChartTitle').innerText = 'Evolução Mensal por Categorias' + suffix;
       document.getElementById('pieChartTitle').innerText = sc === 'laura'
-        ? 'Distribuição Mensal (só 100% Laura)'
-        : (sc === 'casal' ? 'Distribuição Mensal (compartilhado, com Gastos Fixos)' : 'Distribuição Mensal (com Gastos Fixos)');
+        ? 'Distribuição Mensal (100% Laura)'
+        : (sc === 'casal' ? 'Distribuição Mensal (40% Casal, com Gastos Fixos)' : 'Distribuição Mensal (com Gastos Fixos)');
       document.getElementById('lineLegendTotais').innerText = sc === 'laura' ? '100% Laura' : 'Totais';
       document.getElementById('lineLegendVariaveis').classList.toggle('hidden', sc === 'laura');
     }
@@ -1591,7 +1604,7 @@
       const [sy, sm] = state.selectedMonth.split('-');
       const mLabel = monthNames[parseInt(sm, 10) - 1] + ' ' + sy;
       const sc = chartScopeEffective();
-      const scopeTxt = sc === 'laura' ? ' (só 100% Laura)' : (sc === 'casal' ? ' (compartilhado)' : '');
+      const scopeTxt = sc === 'laura' ? ' (100% Laura)' : (sc === 'casal' ? ' (40% Casal)' : '');
       document.getElementById('trendTitle').innerText = 'Fora da tendência em ' + monthNames[parseInt(sm, 10) - 1] + scopeTxt;
       list.innerHTML = '';
       note.classList.add('hidden');
