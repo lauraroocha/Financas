@@ -242,17 +242,27 @@
         </div>
       </div>
 
+      <!-- Filtro dos gráficos (só aparece na Visão Individual) -->
+      <div id="chartScopeRow" class="space-y-1.5">
+        <div class="px-1 text-[10px] uppercase tracking-wider font-semibold text-taupe">Gráficos mostram</div>
+        <div class="p-1 bg-cream-dark/60 rounded-xl flex items-center text-[11px] font-semibold text-taupe">
+          <button type="button" id="chartScopeTudo" onclick="setChartScope('tudo')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">Tudo</button>
+          <button type="button" id="chartScopeLaura" onclick="setChartScope('laura')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">Só 100% Laura</button>
+          <button type="button" id="chartScopeCasal" onclick="setChartScope('casal')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">Compartilhado (40%)</button>
+        </div>
+      </div>
+
       <!-- Gráfico de Evolução Mensal em Linhas (Gastos Variáveis vs Gastos Totais) -->
       <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50">
         <div class="flex items-center justify-between mb-3 gap-2">
           <div>
-            <h3 class="font-serif font-bold text-plum text-sm">Evolução Mensal de Gastos</h3>
+            <h3 id="lineChartTitle" class="font-serif font-bold text-plum text-sm">Evolução Mensal de Gastos</h3>
           </div>
           <div class="flex items-center gap-2.5 text-[10px] font-semibold shrink-0">
             <span class="flex items-center gap-1 text-plum">
-              <span class="w-2.5 h-2.5 rounded-full bg-plum inline-block"></span> Totais
+              <span class="w-2.5 h-2.5 rounded-full bg-plum inline-block"></span> <span id="lineLegendTotais">Totais</span>
             </span>
-            <span class="flex items-center gap-1 text-taupe">
+            <span id="lineLegendVariaveis" class="flex items-center gap-1 text-taupe">
               <span class="w-2.5 h-2.5 rounded-full bg-taupe inline-block"></span> Variáveis
             </span>
           </div>
@@ -266,7 +276,7 @@
       <!-- Gráfico de Evolução Mensal por Categorias (Barras Agrupadas) -->
       <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50">
         <div class="mb-2">
-          <h3 class="font-serif font-bold text-plum text-sm">Evolução Mensal por Categorias</h3>
+          <h3 id="catChartTitle" class="font-serif font-bold text-plum text-sm">Evolução Mensal por Categorias</h3>
         </div>
         <div id="inicioCategoriesLegend" class="flex flex-wrap gap-x-3 gap-y-1 mb-3 text-[10px] font-semibold">
           <!-- Populated dynamically -->
@@ -278,7 +288,7 @@
         <!-- Gráfico de Pizza (Distribuição Mensal com Gastos Fixos) -->
         <div class="mt-4 pt-4 border-t border-taupe-soft/40">
           <div class="mb-3">
-            <h4 class="font-serif font-bold text-plum text-xs">Distribuição Mensal (com Gastos Fixos)</h4>
+            <h4 id="pieChartTitle" class="font-serif font-bold text-plum text-xs">Distribuição Mensal (com Gastos Fixos)</h4>
           </div>
           <div class="flex flex-col sm:flex-row items-center justify-around gap-4">
             <div class="relative w-40 h-40 shrink-0">
@@ -293,6 +303,16 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Fora da Tendência (mês selecionado x histórico) -->
+      <div class="bg-cream-card rounded-2xl p-4 shadow-sm border border-taupe-soft/50 space-y-3">
+        <div>
+          <h3 id="trendTitle" class="font-serif font-bold text-plum text-sm">Fora da tendência</h3>
+          <p id="trendSubtitle" class="text-[11px] text-taupe mt-0.5"></p>
+        </div>
+        <div id="trendList" class="space-y-3"></div>
+        <p id="trendNote" class="text-[10px] text-taupe hidden"></p>
       </div>
 
     </section>
@@ -312,7 +332,7 @@
               <p class="text-[10px] text-taupe truncate">PDF, CSV ou TXT do banco</p>
             </div>
           </div>
-          <label class="cursor-pointer bg-plum text-cream hover:bg-plum-hover px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-colors flex items-center gap-1.5 shadow-xs">
+          <label class="cursor-pointer bg-plum text-cream hover:bg-plum-hover px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-colors flex items-center gap-1.5 shadow-sm">
             <i data-lucide="upload" class="w-3.5 h-3.5"></i>
             <span id="importBtnLabel">Selecionar</span>
             <input type="file" id="csvFileInput" accept=".pdf,.csv,.txt,application/pdf" onchange="handleCSVUpload(event)" class="hidden">
@@ -873,7 +893,8 @@
       goalsList: null,
       lastBackupAt: null,
       categoryMemory: {},        // descrição normalizada -> categoria que a Laura escolheu
-      categoryMemorySeeded: false
+      categoryMemorySeeded: false,
+      chartScope: 'tudo'         // filtro dos gráficos: 'tudo' | 'laura' | 'casal'
     };
 
     const DEFAULT_GOALS_LIST = [
@@ -1061,7 +1082,8 @@
             goalsList: Array.isArray(restored.goalsList) ? restored.goalsList : null,
             lastBackupAt: restored.lastBackupAt || null,
             categoryMemory: restored.categoryMemory && typeof restored.categoryMemory === 'object' ? restored.categoryMemory : {},
-            categoryMemorySeeded: !!restored.categoryMemorySeeded
+            categoryMemorySeeded: !!restored.categoryMemorySeeded,
+            chartScope: ['laura', 'casal'].includes(restored.chartScope) ? restored.chartScope : 'tudo'
           };
 
           normalizeCategories();
@@ -1310,12 +1332,14 @@
       const btnInd = document.getElementById('toggleIndividual');
       const btnCas = document.getElementById('toggleCasal');
       if (state.viewMode === 'individual') {
-        btnInd.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 bg-white text-plum shadow-xs font-bold";
+        btnInd.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 bg-white text-plum shadow-sm font-bold";
         btnCas.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 text-taupe font-semibold hover:text-plum";
       } else {
-        btnCas.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 bg-white text-plum shadow-xs font-bold";
+        btnCas.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 bg-white text-plum shadow-sm font-bold";
         btnInd.className = "flex-1 py-1.5 rounded-lg text-center transition-all duration-200 text-taupe font-semibold hover:text-plum";
       }
+
+      updateChartScopeUI();
 
       // Update calculations
       const monthData = state.monthsData[state.selectedMonth] || { salarioCasal: 0, salarioLaura: 0, investidoLaura: 0, financiamento: 0, condominio: 0, cartaoCasalTotal: 0 };
@@ -1421,7 +1445,7 @@
       const statusBadgeEl = document.getElementById('acertoStatusBadge');
 
       const registrarBtn = `
-        <button onclick="openModalAcerto()" class="text-xs bg-plum text-cream hover:bg-plum-hover px-3 py-1 rounded-lg font-semibold shadow-xs">
+        <button onclick="openModalAcerto()" class="text-xs bg-plum text-cream hover:bg-plum-hover px-3 py-1 rounded-lg font-semibold shadow-sm">
           Registrar pagamento
         </button>`;
       const quitadoBtn = (txt) => `
@@ -1496,8 +1520,165 @@
       renderMetasSection();
       renderInicioLineChart();
       renderInicioCategoriesChart();
-      
+      renderTrendCard();
+
       lucide.createIcons();
+    }
+
+    // ---- FILTRO DOS GRÁFICOS (só na Visão Individual) ----
+    function chartScopeEffective() {
+      return state.viewMode === 'individual' && ['laura', 'casal'].includes(state.chartScope) ? state.chartScope : 'tudo';
+    }
+
+    // 'laura' = só lançamentos 100% Laura; 'casal' = só o compartilhado (60/40 + gastos fixos)
+    function txInChartScope(t) {
+      const sc = chartScopeEffective();
+      if (sc === 'laura') return t.split === '100% Laura';
+      if (sc === 'casal') return t.split === '60/40 Casal';
+      return true;
+    }
+
+    function setChartScope(scope) {
+      state.chartScope = ['laura', 'casal'].includes(scope) ? scope : 'tudo';
+      saveState();
+      updateUI();
+    }
+
+    function updateChartScopeUI() {
+      const row = document.getElementById('chartScopeRow');
+      if (!row) return;
+      row.classList.toggle('hidden', state.viewMode !== 'individual');
+      const sc = chartScopeEffective();
+      const base = 'flex-1 py-1.5 rounded-lg text-center transition-all duration-200 ';
+      const on = 'bg-white text-plum shadow-sm font-bold';
+      const off = 'text-taupe font-semibold hover:text-plum';
+      document.getElementById('chartScopeTudo').className = base + (sc === 'tudo' ? on : off);
+      document.getElementById('chartScopeLaura').className = base + (sc === 'laura' ? on : off);
+      document.getElementById('chartScopeCasal').className = base + (sc === 'casal' ? on : off);
+
+      const suffix = sc === 'laura' ? ' · só 100% Laura' : (sc === 'casal' ? ' · compartilhado (40%)' : '');
+      document.getElementById('lineChartTitle').innerText = 'Evolução Mensal de Gastos' + suffix;
+      document.getElementById('catChartTitle').innerText = 'Evolução Mensal por Categorias' + suffix;
+      document.getElementById('pieChartTitle').innerText = sc === 'laura'
+        ? 'Distribuição Mensal (só 100% Laura)'
+        : (sc === 'casal' ? 'Distribuição Mensal (compartilhado, com Gastos Fixos)' : 'Distribuição Mensal (com Gastos Fixos)');
+      document.getElementById('lineLegendTotais').innerText = sc === 'laura' ? '100% Laura' : 'Totais';
+      document.getElementById('lineLegendVariaveis').classList.toggle('hidden', sc === 'laura');
+    }
+
+    // ---- FORA DA TENDÊNCIA: mês selecionado x média dos meses anteriores (por categoria) ----
+    function catTotalsForMonth(mKey) {
+      const out = {};
+      state.transactions.forEach(t => {
+        if (t.month !== mKey) return;
+        if (t.split === '100% Rodrigo') return;
+        if (state.viewMode === 'casal' && t.split !== '60/40 Casal') return;
+        if (!txInChartScope(t)) return;
+        const v = parseFloat(t.value) || 0;
+        const val = state.viewMode === 'individual' && t.split === '60/40 Casal' ? v * 0.40 : v;
+        const cat = t.cat || 'Outros';
+        out[cat] = (out[cat] || 0) + val;
+      });
+      return out;
+    }
+
+    function renderTrendCard() {
+      const list = document.getElementById('trendList');
+      if (!list) return;
+      const sub = document.getElementById('trendSubtitle');
+      const note = document.getElementById('trendNote');
+      const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      const [sy, sm] = state.selectedMonth.split('-');
+      const mLabel = monthNames[parseInt(sm, 10) - 1] + ' ' + sy;
+      const sc = chartScopeEffective();
+      const scopeTxt = sc === 'laura' ? ' (só 100% Laura)' : (sc === 'casal' ? ' (compartilhado)' : '');
+      document.getElementById('trendTitle').innerText = 'Fora da tendência em ' + monthNames[parseInt(sm, 10) - 1] + scopeTxt;
+      list.innerHTML = '';
+      note.classList.add('hidden');
+
+      // até 5 meses anteriores que tenham algum gasto no filtro atual
+      const prevMonths = [...new Set(state.transactions.map(t => t.month))]
+        .filter(m => m && m < state.selectedMonth)
+        .sort().reverse();
+      const hist = [];
+      for (const m of prevMonths) {
+        const tot = catTotalsForMonth(m);
+        if (Object.keys(tot).length) hist.push(tot);
+        if (hist.length === 5) break;
+      }
+      const cur = catTotalsForMonth(state.selectedMonth);
+
+      const emptyMsg = (txt) => {
+        const d = document.createElement('p');
+        d.className = 'text-xs text-taupe py-2';
+        d.textContent = txt;
+        list.appendChild(d);
+      };
+      if (hist.length < 2) {
+        sub.textContent = 'Compara cada categoria de ' + mLabel + ' com a média dos meses anteriores.';
+        emptyMsg('Preciso de pelo menos 2 meses anteriores com lançamentos para comparar.');
+        return;
+      }
+      sub.textContent = `${mLabel} comparado à média dos ${hist.length} meses anteriores.`;
+
+      const cats = new Set([...Object.keys(cur), ...hist.flatMap(h => Object.keys(h))]);
+      const rows = [];
+      cats.forEach(cat => {
+        const now = cur[cat] || 0;
+        const avg = hist.reduce((a, h) => a + (h[cat] || 0), 0) / hist.length;
+        const diff = now - avg;
+        const pct = avg > 0 ? diff / avg : null;
+        const seen = hist.filter(h => (h[cat] || 0) > 0).length;
+        // só destaca diferenças relevantes: ao menos R$ 30 e 20% (ou categoria nova)
+        if (Math.abs(diff) < 30) return;
+        if (pct !== null && Math.abs(pct) < 0.20) return;
+        rows.push({ cat, now, avg, diff, pct, seen });
+      });
+      const ups = rows.filter(r => r.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, 5);
+      const downs = rows.filter(r => r.diff < 0).sort((a, b) => a.diff - b.diff).slice(0, 3);
+      if (!ups.length && !downs.length) {
+        emptyMsg('Nada fora do padrão: seus gastos por categoria estão dentro do histórico. 👌');
+      }
+
+      const maxV = Math.max(1, ...[...ups, ...downs].map(r => Math.max(r.now, r.avg)));
+      const addRow = (r) => {
+        const up = r.diff > 0;
+        const color = up ? '#B5483A' : '#5E8C6A';
+        const wNow = Math.max(2, (r.now / maxV) * 100);
+        const wAvg = Math.max(2, (r.avg / maxV) * 100);
+        const pctTxt = r.pct === null ? 'sem histórico na categoria' : `${up ? '+' : '−'}${Math.round(Math.abs(r.pct) * 100)}%`;
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="text-xs font-semibold text-plum"></span>
+            <span class="text-[11px] font-bold font-numeric" style="color:${color}"></span>
+          </div>
+          <div class="mt-1 space-y-0.5">
+            <div class="h-1.5 rounded-full bg-cream-dark/60"><div class="h-1.5 rounded-full" style="width:${wNow}%;background:${color}"></div></div>
+            <div class="h-1 rounded-full bg-cream-dark/60"><div class="h-1 rounded-full" style="width:${wAvg}%;background:#C9BDB2"></div></div>
+          </div>
+          <div class="mt-0.5 text-[10px] text-taupe font-numeric"></div>`;
+        const spans = wrap.querySelectorAll('span');
+        spans[0].textContent = r.cat;
+        spans[1].textContent = `${up ? '+' : '−'}${formatR$(Math.abs(r.diff))} · ${pctTxt}`;
+        wrap.lastElementChild.textContent = `${mLabel}: ${formatR$(r.now)} · média: ${formatR$(r.avg)}`;
+        list.appendChild(wrap);
+      };
+      const addHeader = (txt) => {
+        const h = document.createElement('div');
+        h.className = 'text-[10px] uppercase tracking-wider font-semibold text-taupe pt-1';
+        h.textContent = txt;
+        list.appendChild(h);
+      };
+      if (ups.length) { addHeader('Gastou mais que o normal'); ups.forEach(addRow); }
+      if (downs.length) { addHeader('Gastou menos que o normal'); downs.forEach(addRow); }
+
+      const now = new Date();
+      const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      if (state.selectedMonth === curKey) {
+        note.textContent = 'Mês em andamento: a comparação pode mudar até o fechamento.';
+        note.classList.remove('hidden');
+      }
     }
 
     function renderInicioLineChart() {
@@ -1511,6 +1692,8 @@
 
       const seriesTotais = [];
       const seriesVariaveis = [];
+      const lineScope = chartScopeEffective();
+      const showVar = lineScope !== 'laura'; // com "só 100% Laura" as duas linhas seriam iguais
 
       months.forEach(mKey => {
         const md = state.monthsData[mKey] || { financiamento: 0, condominio: 0, cartaoCasalTotal: 0 };
@@ -1518,30 +1701,46 @@
 
         let varInd = 0;
         let varCasal = 0;
+        let varSoLaura = 0;
+        let varCompart40 = 0;
         mTx.forEach(t => {
           const val = parseFloat(t.value) || 0;
           if (t.split === '60/40 Casal') {
             varInd += val * 0.40;
             varCasal += val;
+            varCompart40 += val * 0.40;
           } else if (t.split === '100% Rodrigo') {
             // não entra nos gastos da Laura nem do casal
           } else {
             // 100% Laura entra apenas na visão individual
             varInd += val;
+            varSoLaura += val;
           }
         });
 
         const fixInd = (md.financiamento + md.condominio + md.cartaoCasalTotal) * 0.40;
         const fixCasal = md.financiamento + md.condominio + md.cartaoCasalTotal;
 
-        const varVal = state.viewMode === 'individual' ? varInd : varCasal;
-        const totVal = state.viewMode === 'individual' ? (fixInd + varInd) : (fixCasal + varCasal);
+        let varVal, totVal;
+        if (state.viewMode !== 'individual') {
+          varVal = varCasal;
+          totVal = fixCasal + varCasal;
+        } else if (lineScope === 'laura') {
+          varVal = varSoLaura;
+          totVal = varSoLaura;
+        } else if (lineScope === 'casal') {
+          varVal = varCompart40;
+          totVal = fixInd + varCompart40;
+        } else {
+          varVal = varInd;
+          totVal = fixInd + varInd;
+        }
 
         seriesVariaveis.push(varVal);
         seriesTotais.push(totVal);
       });
 
-      const maxVal = Math.max(...seriesTotais, ...seriesVariaveis, 100);
+      const maxVal = Math.max(...seriesTotais, ...(showVar ? seriesVariaveis : []), 100);
       const width = 320;
       const height = 165;
       const padTop = 22;
@@ -1592,7 +1791,7 @@
       };
 
       drawPath(ptsTotais, "#4A1D2F");
-      drawPath(ptsVariaveis, "#8F7B6C");
+      if (showVar) drawPath(ptsVariaveis, "#8F7B6C");
 
       ptsTotais.forEach((p, i) => {
         const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -1626,7 +1825,7 @@
         svg.appendChild(mTxt);
       });
 
-      ptsVariaveis.forEach((p) => {
+      (showVar ? ptsVariaveis : []).forEach((p) => {
         const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         c.setAttribute("cx", p.x);
         c.setAttribute("cy", p.y);
@@ -1647,6 +1846,20 @@
         svg.appendChild(lbl);
       });
     }
+
+    // Paleta harmônica com cores distintas e contrastantes entre si
+    const CHART_PALETTE = [
+        { bg: '#4A1D2F', text: '#FAF7F2' }, // Ameixa Profundo
+        { bg: '#C06C52', text: '#FAF7F2' }, // Terracota
+        { bg: '#3E6B65', text: '#FAF7F2' }, // Verde Petróleo / Sálvia Escuro
+        { bg: '#D49B38', text: '#2D2327' }, // Ocre / Mostarda Dourada
+        { bg: '#5B678A', text: '#FAF7F2' }, // Azul Ardósia
+        { bg: '#8C3B58', text: '#FAF7F2' }, // Vinho / Framboesa
+        { bg: '#6E855B', text: '#FAF7F2' }, // Verde Oliva
+        { bg: '#B87A4B', text: '#FAF7F2' }, // Caramelo Quente
+        { bg: '#7B6D8D', text: '#FAF7F2' }, // Lavanda Ametista
+        { bg: '#A68A7B', text: '#2D2327' }  // Taupe Rosado
+      ];
 
     function renderInicioCategoriesChart() {
       const svg = document.getElementById('inicioCategoriesChart');
@@ -1672,6 +1885,7 @@
           // 100% Rodrigo nunca entra; na visão casal, ignora também os 100% Laura
           if (t.split === '100% Rodrigo') return;
           if (state.viewMode === 'casal' && t.split !== '60/40 Casal') return;
+          if (!txInChartScope(t)) return;
           const v = parseFloat(t.value) || 0;
           const val = state.viewMode === 'individual' && t.split === '60/40 Casal' ? v * 0.40 : v;
           const cat = t.cat || 'Outros';
@@ -1686,21 +1900,20 @@
         if (diffLast !== 0) return diffLast;
         return catOverall[b] - catOverall[a];
       });
-      if (categories.length === 0) return;
+      if (categories.length === 0) {
+        const msg = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        msg.setAttribute("x", 160);
+        msg.setAttribute("y", 140);
+        msg.setAttribute("text-anchor", "middle");
+        msg.setAttribute("font-size", "11");
+        msg.setAttribute("fill", "#8F7B6C");
+        msg.textContent = 'Sem gastos nesta seleção';
+        svg.appendChild(msg);
+        renderInicioMonthlyPieChart({}, CHART_PALETTE); // mantém a pizza em dia com o filtro
+        return;
+      }
 
-      // Paleta harmônica com cores distintas e contrastantes entre si
-      const distinctPalette = [
-        { bg: '#4A1D2F', text: '#FAF7F2' }, // Ameixa Profundo
-        { bg: '#C06C52', text: '#FAF7F2' }, // Terracota
-        { bg: '#3E6B65', text: '#FAF7F2' }, // Verde Petróleo / Sálvia Escuro
-        { bg: '#D49B38', text: '#2D2327' }, // Ocre / Mostarda Dourada
-        { bg: '#5B678A', text: '#FAF7F2' }, // Azul Ardósia
-        { bg: '#8C3B58', text: '#FAF7F2' }, // Vinho / Framboesa
-        { bg: '#6E855B', text: '#FAF7F2' }, // Verde Oliva
-        { bg: '#B87A4B', text: '#FAF7F2' }, // Caramelo Quente
-        { bg: '#7B6D8D', text: '#FAF7F2' }, // Lavanda Ametista
-        { bg: '#A68A7B', text: '#2D2327' }  // Taupe Rosado
-      ];
+      const distinctPalette = CHART_PALETTE;
 
       const colorMap = {};
       const textColorMap = {};
@@ -1834,7 +2047,7 @@
       // Verifica se há lançamentos de Cartão Casal importados/cadastrados no mês
       const hasCasalTx = mTx.some(t => t.method === 'Cartão Casal');
 
-      if (md) {
+      if (md && chartScopeEffective() !== 'laura') { // gastos fixos são compartilhados
         const financ = parseFloat(md.financiamento) || 0;
         const cond = parseFloat(md.condominio) || 0;
         const cartaoCasalBase = hasCasalTx ? 0 : (parseFloat(md.cartaoCasalTotal) || 0);
@@ -1849,6 +2062,7 @@
         // 100% Rodrigo nunca entra; na visão casal, ignora também os 100% Laura
         if (t.split === '100% Rodrigo') return;
         if (state.viewMode === 'casal' && t.split !== '60/40 Casal') return;
+        if (!txInChartScope(t)) return;
         const v = parseFloat(t.value) || 0;
         const val = state.viewMode === 'individual' && t.split === '60/40 Casal' ? v * 0.40 : v;
         const cat = t.cat || 'Outros';
@@ -1941,6 +2155,7 @@
       if (tabName === 'inicio') {
         renderInicioLineChart();
         renderInicioCategoriesChart();
+        renderTrendCard();
       }
       lucide.createIcons();
     }
@@ -3121,7 +3336,7 @@
             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reabrir Meta
           </button>
         ` : `
-          <button onclick="concluirMeta('${goal.id}')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-700 text-white hover:bg-emerald-800 flex items-center gap-1.5 shadow-xs">
+          <button onclick="concluirMeta('${goal.id}')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-700 text-white hover:bg-emerald-800 flex items-center gap-1.5 shadow-sm">
             <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Concluir Meta
           </button>
         `}
