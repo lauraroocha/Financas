@@ -479,6 +479,12 @@
           </select>
         </div>
 
+        <div class="p-1 bg-cream-dark/60 rounded-xl flex items-center text-[11px] font-semibold text-taupe">
+          <button type="button" id="listScopeTudo" onclick="setListScope('tudo')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">Total</button>
+          <button type="button" id="listScopeLaura" onclick="setListScope('laura')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">100% Laura</button>
+          <button type="button" id="listScopeCasal" onclick="setListScope('casal')" class="flex-1 py-1.5 rounded-lg text-center transition-all duration-200">40% Casal</button>
+        </div>
+
         <div id="lancamentosList" class="space-y-2">
           <!-- Dynamically populated -->
         </div>
@@ -2178,6 +2184,13 @@
       return formatDateShort(isoDate);
     }
 
+    // Filtro da lista de lançamentos por divisão (não é salvo: volta para Total ao reabrir o app)
+    let listScope = 'tudo';
+    function setListScope(scope) {
+      listScope = ['laura', 'casal'].includes(scope) ? scope : 'tudo';
+      renderLancamentosList();
+    }
+
     function renderLancamentosList() {
       const container = document.getElementById('lancamentosList');
       if (!container) return;
@@ -2187,6 +2200,13 @@
       if (catFilter !== 'Todas') {
         list = list.filter(t => t.cat === catFilter);
       }
+      if (listScope === 'laura') list = list.filter(t => t.split === '100% Laura');
+      if (listScope === 'casal') list = list.filter(t => t.split === '60/40 Casal');
+      const on = 'flex-1 py-1.5 rounded-lg text-center transition-all duration-200 bg-white text-plum shadow-sm font-bold';
+      const off = 'flex-1 py-1.5 rounded-lg text-center transition-all duration-200 text-taupe font-semibold hover:text-plum';
+      document.getElementById('listScopeTudo').className = listScope === 'tudo' ? on : off;
+      document.getElementById('listScopeLaura').className = listScope === 'laura' ? on : off;
+      document.getElementById('listScopeCasal').className = listScope === 'casal' ? on : off;
       list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
       if (list.length === 0) {
